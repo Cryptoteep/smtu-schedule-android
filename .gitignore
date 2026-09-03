@@ -1,0 +1,20 @@
+# Build outputs
+build/
+app/build/
+
+# Gradle
+.gradle/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Signing (never commit keys)
+keystore.properties
+*.jks
+*.keystore
+
+# OS
+.DS_Store

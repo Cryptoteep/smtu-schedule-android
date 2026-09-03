@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Optional release signing: put a keystore.properties in the project root with
+//   storeFile=/absolute/or/relative/path.jks
+//   storePassword=...
+//   keyAlias=...
+//   keyPassword=...
+// Without it, release builds fall back to the debug key so the APK stays
+// installable (fine for personal use; use a real key before publishing).
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+android {
+    namespace 'com.korabel.schedule'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.korabel.schedule"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+            signingConfig keystorePropertiesFile.exists()
+                    ? signingConfigs.release
+                    : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+// intentionally no dependencies: built-in android.* APIs only, keeps the APK tiny
