@@ -1,199 +1,218 @@
-# Расписание СПбГМТУ — minimal native Android app
+# Расписание СПбГМТУ
 
-## Русский
+Неофициальное Android-приложение для просмотра расписания
+[СПбГМТУ](https://www.smtu.ru/). Чистая Java, ни одной сторонней библиотеки
+(без AndroidX), весь интерфейс собирается кодом. Release-APK — 48 КБ.
 
-Неофициальное приложение для просмотра расписания
-[СПбГМТУ](https://www.smtu.ru/). Чистая Java, ноль зависимостей (без AndroidX
-и внешних библиотек, без ресурсов), один Activity с интерфейсом, построенным
-кодом. Размер APK — около 25 КБ.
+[English below](#english)
 
-### Источник данных: только www.smtu.ru
+<p align="center">
+  <img src="docs/screenshot-week.png" width="30%" alt="Неделя">
+  <img src="docs/screenshot-day.png" width="30%" alt="День">
+  <img src="docs/screenshot-lesson.png" width="30%" alt="Занятие">
+</p>
+
+## Возможности
+
+- **Выбор группы один раз** — поиск по всем 449 группам, дальше запоминается.
+- **Неделя и день** — переключение одной кнопкой, свайп влево/вправо листает
+  день или неделю. Весь семестр загружается одним запросом, дальше листание
+  мгновенное и работает офлайн.
+- **Верхняя/нижняя неделя** вычисляется **из самих данных сайта**: у каждого
+  занятия есть список точных дат, по ним и восстанавливается цикл чётности —
+  никакой захардкоженной «опорной недели», которая протухает к следующему
+  семестру.
+- **Текущая пара подсвечивается**, прошедшие сегодня — приглушены.
+- **Расписание преподавателя** открывается прямо в приложении (тап по занятию →
+  «Преподаватель»), со всеми его группами; кнопка «назад» возвращает к своей.
+- **Поиск** по предмету, преподавателю, аудитории, типу занятия и группе.
+- **Добавить пару в календарь** телефона и **поделиться** днём/неделей текстом.
+- **Тёмная тема** — автоматически по системной.
+- **Офлайн**: каждая загрузка сливается в кэш, приложение стартует мгновенно и
+  показывает расписание без сети; занятия, удалённые с сайта, остаются в истории.
+
+## Источник данных: только www.smtu.ru
 
 У сайта нет API, поэтому приложение разбирает его серверные страницы —
-единственный авторитетный источник, который университет правит сам:
+единственный авторитетный источник, который правит сам университет:
 
-    GET /ru/listschedule/                   -> все 449 id и названия групп
-    GET /ru/viewschedule_new/<gid>/         -> расписание группы на весь семестр
-    GET /ru/viewschedule_new/teacher/<pid>/ -> расписание преподавателя на семестр
-                                               (pid = id из ссылки /ru/viewperson/<pid>/,
-                                                которая стоит у каждого преподавателя)
+```
+GET /ru/listschedule/                   -> 449 групп: id и названия
+GET /ru/viewschedule_new/<gid>/         -> расписание группы на весь семестр
+GET /ru/viewschedule_new/teacher/<pid>/ -> расписание преподавателя на семестр
+                                           (pid — id из ссылки /ru/viewperson/<pid>/)
+```
 
-Каждая страница расписания содержит весь семестр одним ответом. Парсер
-ориентирован на карточное представление, общее для всех этих страниц:
-дневные блоки → карточки по времени → контейнеры верхней/нижней недели.
-Каждое занятие несёт:
+Каждая страница отдаёт весь семестр одним ответом и рендерит его дважды:
+карточками (`#card-container`) и таблицей (`#table-container`). Парсер читает
+**таблицу** — она регулярнее и богаче: только там у занятия указана **группа**,
+без которой расписание преподавателя бесполезно. Карточный вид оставлен
+запасным путём на случай, если таблица исчезнет.
 
-- предмет, вид (Лекция/Практическое занятие/…), аудиторию
-- класс `js-week-1`/`js-week-2` = верхняя/нижняя неделя
-- атрибут `title` со **всеми точными датами проведения** — именно это делает
-  просмотр по дням и неделям точным
-- имя преподавателя и его viewperson-id (открывает его собственное расписание)
+```html
+<tr class="js-week-container js-week-1">          <!-- 1 — верхняя, 2 — нижняя -->
+  <th>08:30 - 10:00</th>
+  <td>верхняя</td>
+  <td title="14.09.2026, 28.09.2026, …">14 сентября — 21 декабря 2026</td>
+  <td>167 Корпус У</td>
+  <td>12826-11</td>
+  <td><span>Предмет</span><br><small class="text-muted">Лекция</small></td>
+  <td><a href='/ru/viewperson/105760/'>Фамилия Имя Отчество</a></td>
+```
 
-Чётность недели для плашки в шапке считается от якоря, который пересчитывается
-при каждой загрузке по строке сайта «Сегодня: … верхняя/нижняя неделя», поэтому
-остаётся верным и в следующие семестры. Запасной вариант: неделя 2026-08-31 —
-верхняя.
+Колонки ищутся по заголовкам таблицы, а не по номерам, поэтому добавленный или
+переставленный столбец не сдвигает данные молча. Атрибут `title` со всеми
+точными датами — то, что делает просмотр по дням и неделям точным.
 
-Каждая загрузка сливается в кэш-файл конкретного расписания в приватном хранилище
-приложения: офлайн-работа, мгновенный запуск, история переживает правки на сайте.
+Сайт нигде не пишет чётность текущей недели машиночитаемо, но это и не нужно:
+даты занятий из `js-week-1`/`js-week-2` сами задают цикл. `WeekParity` берёт
+неделю с самым уверенным большинством за опорную и проверяет по ней весь
+семестр; если цикл где-то рвётся, приложение честно пишет «чётность недель
+неточная» в строке состояния.
 
-### Возможности
+## Структура
 
-- Группа выбирается один раз (поиск по всем 449 группам) и сохраняется;
-  смена — тапом по названию группы в шапке
-- Просмотр по неделе (Пн–Вс) и по дню с быстрым переключением дней, навигация
-  ‹ › на весь семестр (одна загрузка — и всё расписание уже на устройстве)
-- Кнопка ⟳ в шапке обновляет расписание с smtu.ru
-- Кнопка ⓘ (справа вверху) открывает диалог «О приложении»
-- Цветная плашка верхней/нижней недели
-- Тап по занятию: день недели, время, вид, аудитория, чётность, диапазон дат
-  и все точные даты
-- «О предмете»: все вхождения предмета
-- «Преподаватель»: полное расписание преподавателя по всем группам,
-  загружается с smtu.ru по его viewperson-id
-- Для занятий без списка дат — запасное сопоставление по чётности и дню недели
+```
+app/src/main/java/com/korabel/schedule/
+  Dates.java            даты в epoch-днях + русские названия (без Locale и TimeZone-сюрпризов)
+  Html.java             снятие тегов и декодирование HTML-сущностей
+  Lesson.java           занятие: время, чётность, точные даты, преподаватель, группа
+  Group.java            группа с натуральной сортировкой (9 раньше 12)
+  ScheduleParser.java   парсер страниц smtu.ru (таблица + карточки-фолбэк)
+  WeekParity.java       восстановление цикла верхняя/нижняя по данным
+  Schedule.java         запросы к расписанию: день, неделя, «сейчас», поиск, слияние с кэшем
+  Smtu.java             сеть и кэш (единственный класс, знающий про Android Context)
+  Ui.java               палитра (светлая/тёмная) и построители вью
+  MainActivity.java     весь экран и диалоги
+app/src/test/java/…     50 JVM-тестов
+app/src/test/resources/fixtures/   реальные страницы smtu.ru, на которых гоняются тесты
+```
 
-### Структура
+Ядро (`Dates`, `Html`, `Lesson`, `Group`, `ScheduleParser`, `WeekParity`,
+`Schedule`) не зависит от Android — поэтому парсер и вся логика дат покрыты
+обычными JUnit-тестами, которые идут за секунду.
 
-    app/src/main/
-      AndroidManifest.xml
-      java/com/korabel/schedule/
-        Smtu.java          клиент smtu.ru: загрузка, парсер карточек, кэш, чётность
-        MainActivity.java  весь интерфейс (кнопки/списки кодом, без XML)
+## Тесты
 
-### Сборка
+```bash
+./gradlew test
+```
 
-Требуются JDK 17, Android SDK (cmdline-tools + `platforms;android-34` +
-`build-tools;34.0.0`), Gradle 8.7+. Версия AGP: 8.5.2.
+50 тестов гоняются **на настоящих страницах** сайта (осенний семестр 2026/2027),
+сохранённых в `app/src/test/resources/fixtures/`. Они проверяют, среди прочего:
 
-С переменной `ANDROID_HOME`, указывающей на SDK:
+- все 449 групп разбираются и сортируются натурально;
+- у группы 12826-11 читаются все 47 строк со всеми полями (предмет, тип,
+  аудитория, преподаватель + его id, группа, диапазон и 8 точных дат);
+- преподаватель, напечатанный без ссылки на карточку персоны, всё равно
+  распознаётся, а примечание «С 26.10 по 14.12» не принимается за ФИО;
+- на странице преподавателя у каждого занятия есть группа;
+- карточный фолбэк даёт тот же результат, что и таблица;
+- переставленные колонки не ломают разбор, обрезанная страница не роняет парсер;
+- цикл чётности недель восстанавливается из данных и устойчив к одной
+  ошибочной строке;
+- арифметика дат совпадает с `GregorianCalendar` на 11 лет вперёд.
 
-    gradle assembleDebug
-    # -> app/build/outputs/apk/debug/app-debug.apk
-    adb install app/build/outputs/apk/debug/app-debug.apk
+Если университет поменяет вёрстку, тесты упадут раньше пользователя.
 
-Продакшен-сборка:
+## Сборка
 
-    gradle assembleRelease
-    # -> app/build/outputs/apk/release/app-release.apk
+Нужны JDK 17 и Android SDK (`platforms;android-34`, `build-tools;34.0.0`).
+Gradle-обёртка в репозитории.
 
-Release собирается с R8-минификацией и сжатием ресурсов. Для подписи: создайте
-keystore и файл `keystore.properties` в корне проекта (ожидаемые ключи — в
-`app/build.gradle`) — он подхватится автоматически. Без него release-APK
-подписывается отладочным ключом: годится для личной установки, но не для
-публикации.
+```bash
+./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
+./gradlew test              # юнит-тесты
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-Gradle wrapper в репозиторий не вложен; сгенерируйте его `gradle wrapper` или
-запускайте Gradle напрямую.
+Release собирается с R8 и сжатием ресурсов. Для подписи положите рядом
+`keystore.properties` (ключи перечислены в `app/build.gradle`) — он подхватится
+автоматически; без него release подписывается отладочным ключом: годится для
+личной установки, но не для публикации.
 
-### Замечания
+Готовый APK собирается и в CI: вкладка **Actions** → последний прогон →
+артефакт `app-debug.apk`.
 
-- Приложение обращается к `www.smtu.ru` напрямую с телефона. Сервер
-  университета, похоже, отклоняет часть не-российских IP, поэтому при VPN с
-  зарубежным выходом первая загрузка может не пройти — приложение продолжит
-  работать из кэша. Сеть используется только при запуске и по кнопке ⟳.
-- Min SDK 21 (Android 5.0), target SDK 34.
+## Замечания
 
-### Лицензия
+- Приложение ходит на `www.smtu.ru` напрямую. Сервер университета отклоняет
+  часть зарубежных IP, поэтому под VPN с иностранным выходом первая загрузка
+  может не пройти — дальше приложение работает из кэша.
+- Сеть используется только при запуске и по кнопке ⟳.
+- Min SDK 21 (Android 5.0), target SDK 34. Разрешения: только интернет.
+
+## Лицензия
 
 MIT — см. [LICENSE](LICENSE). Приложение не связано с СПбГМТУ; все данные
 расписания принадлежат университету.
 
 ---
 
-## English
+<a name="english"></a>
 
-Unofficial schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint Petersburg
-State Marine Technical University). Pure Java, zero dependencies (no AndroidX,
-no external libraries, no resources), one Activity with programmatic views.
-The APK is tiny (~25 KB release).
+# SPbSMTU Schedule
 
-### Data source: www.smtu.ru only
+Unofficial Android schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint
+Petersburg State Marine Technical University). Pure Java, zero third-party
+libraries (no AndroidX), all views built in code. The release APK is 48 KB.
 
-The site has no API, so the app parses its server-rendered pages — the
-authoritative source, corrected and updated by the university directly:
+## Features
 
-    GET /ru/listschedule/                   -> all 449 group ids and names
-    GET /ru/viewschedule_new/<gid>/         -> full-semester group schedule
-    GET /ru/viewschedule_new/teacher/<pid>/ -> full-semester teacher schedule
-                                               (pid = the /ru/viewperson/<pid>/ id
-                                                linked from every lesson's teacher)
+- **Pick your group once** — searchable list of all 449 groups, remembered after.
+- **Week and day views**, swipe left/right to move a day or a week. One fetch
+  holds the whole semester, so navigation is instant and works offline.
+- **Upper/lower week parity is derived from the site's own data**: every lesson
+  carries the exact dates it happens on, so the cycle is reconstructed instead
+  of hard-coded — it cannot go stale next semester.
+- **The lesson happening now is highlighted**; today's finished ones are dimmed.
+- **A teacher's full schedule** opens in place (tap a lesson → «Преподаватель»),
+  across all their groups, with back returning to yours.
+- **Search** across subject, teacher, room, lesson type and group.
+- **Add a lesson to the phone's calendar**, or share a day/week as text.
+- **Dark theme**, following the system.
+- **Offline**: every fetch merges into a cache, so the app starts instantly and
+  keeps lessons the university later removes from the page.
 
-Each schedule page contains the whole semester in one response. The parser
-targets the card view all these pages share: day blocks → time cards →
-upper/lower week containers, where each lesson carries:
+## Data source: www.smtu.ru only
 
-- subject, type (Лекция/Практическое занятие/…), room
-- `js-week-1`/`js-week-2` class = верхняя/нижняя неделя
-- a `title` attribute listing **every exact occurrence date** — this is what
-  makes day/week views exact
-- teacher name + viewperson id (enables the teacher's own full schedule)
+The site has no API, so the app parses its server-rendered pages:
 
-Week parity for the navigation badge is computed from an anchor that is
-recalibrated on every fetch from the site's own "Сегодня: … верхняя/нижняя
-неделя" header, so it stays correct across semesters. Fallback constant: the
-week of 2026-08-31 is upper.
+```
+GET /ru/listschedule/                   -> all 449 group ids and names
+GET /ru/viewschedule_new/<gid>/         -> a group's full-semester schedule
+GET /ru/viewschedule_new/teacher/<pid>/ -> a teacher's full-semester schedule
+```
 
-Every fetch merges into a per-schedule cache file in the app's private storage:
-offline support, instant startup, and past lessons survive page edits.
+Each page renders the same data twice — as cards and as a table. The parser
+reads the **table**: it is more regular and strictly richer, and it is the only
+view that names the **group** of each lesson, without which a teacher's
+timetable is useless. Columns are located by their header text, so a reordered
+column does not shift the data silently. The `title` attribute listing every
+occurrence date is what makes the day and week views exact.
 
-### Features
+Week parity is derived from those dates (`WeekParity`): the week with the
+strongest majority becomes the anchor, and the rest of the semester is checked
+against it — a broken cycle is reported in the status line rather than hidden.
 
-- Pick your group once (searchable list of all 449 groups) — saved on device;
-  tap the group name in the header to change it later
-- Week view (Mon–Sun) and day view with weekday quick-switch, ‹ › navigation
-  across the whole semester (one fetch has it all)
-- ⟳ button in the header re-fetches the schedule from smtu.ru
-- ⓘ button (top-right) opens the about/info dialog
-- Upper/lower week badge, color-coded
-- Tap a lesson: weekday, time, type, room, parity, date range + every exact date
-- "О предмете": all occurrences of the subject
-- "Преподаватель": the teacher's full schedule across all groups, fetched
-  live from smtu.ru via their viewperson id
-- Lessons whose rows carry no exact dates fall back to parity + weekday matching
+## Layout, tests, building
 
-### Layout
+See the Russian sections above; the commands are:
 
-    app/src/main/
-      AndroidManifest.xml
-      java/com/korabel/schedule/
-        Smtu.java          smtu.ru client: fetch, card-view parser, cache, parity
-        MainActivity.java  all UI (programmatic views, no XML resources)
+```bash
+./gradlew test              # 50 JVM tests against real saved pages
+./gradlew assembleDebug
+./gradlew assembleRelease
+```
 
-### Building
+The core (`Dates`, `Html`, `Lesson`, `Group`, `ScheduleParser`, `WeekParity`,
+`Schedule`) has no Android dependencies, which is what makes it testable on the
+JVM in under a second. `Smtu` is the only class that knows about `Context`.
 
-Requirements: JDK 17, Android SDK (cmdline-tools + `platforms;android-34` +
-`build-tools;34.0.0`), Gradle 8.7+. AGP version: 8.5.2.
+Min SDK 21, target SDK 34, internet permission only.
 
-With `ANDROID_HOME` set to the SDK root:
-
-    gradle assembleDebug
-    # -> app/build/outputs/apk/debug/app-debug.apk
-    adb install app/build/outputs/apk/debug/app-debug.apk
-
-Production build:
-
-    gradle assembleRelease
-    # -> app/build/outputs/apk/release/app-release.apk
-
-The release build is minified and resource-shrunk. For signing: create a
-keystore and a `keystore.properties` in the project root (see
-`app/build.gradle` for the expected keys) — it is picked up automatically.
-Without it the release APK is signed with the debug key, which is fine for
-personal sideloading but not for publishing.
-
-No Gradle wrapper jar is committed; generate one with `gradle wrapper` or run
-Gradle directly.
-
-### Notes
-
-- The app talks to `www.smtu.ru` directly from the phone. The university's
-  server appears to refuse some non-Russian exit IPs, so on a VPN with a
-  foreign endpoint the initial fetch may time out — the app then keeps working
-  from cache. Fetches happen only at startup and on ⟳.
-- Min SDK 21 (Android 5.0), target SDK 34.
-
-### License
+## License
 
 MIT — see [LICENSE](LICENSE). Not affiliated with SPbSMTU; all schedule data
 belongs to the university.

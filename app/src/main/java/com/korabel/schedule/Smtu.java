@@ -1,7 +1,6 @@
 package com.korabel.schedule;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -9,373 +8,322 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.zip.GZIPInputStream;
 
 /**
- * Client for the only authoritative source of СПбГМТУ schedules: www.smtu.ru.
+ * Everything that talks to www.smtu.ru or to the disk: fetching a page, caching
+ * the parsed result, and handing it back on the main thread.
  *
- *   GET /ru/listschedule/                     -> all group ids and names
- *   GET /ru/viewschedule_new/<gid>/           -> full-semester group schedule
- *   GET /ru/viewschedule_new/teacher/<pid>/   -> full-semester teacher schedule
- *                                               (pid = the /ru/viewperson/<pid>/ id
- *                                                found in group schedule links)
+ * Parsing itself lives in {@link ScheduleParser}; this class stays thin so the
+ * interesting logic can be unit-tested without Android.
  *
- * Pages are server-rendered HTML. The parser targets the "card" view whose
- * structure every schedule page shares:
- *
- *   <div class="js-day-block"> <h2>Понедельник</h2>
- *     <div class="col js-time-card"> <h3><span>08:30 - 10:00</span></h3>
- *       <div class="js-week-container js-week-1|2">     (upper | lower week)
- *         <h3 class="h6 ..."><span>SUBJECT</span></h3>
- *         <p class="small text-muted ..." title="14.09.2026, 28.09.2026, ...">…</p>
- *         <p class="card-text ..."><em>ROOM <small class="text-muted">TYPE</small></em></p>
- *         <a href="/ru/viewperson/100952/"><small>TEACHER</small></a>
- *
- * The title attribute lists the exact dates of every occurrence, which is what
- * makes day/week views exact. Every fetch merges into a per-schedule cache
- * file, so the app works offline and history survives page edits.
+ * Caching policy: every fetch is merged into the cached copy of that schedule
+ * (see {@link Schedule#mergedWith}), so the app starts instantly, works offline,
+ * and keeps lessons that the university later removes from the page.
  */
 public final class Smtu {
 
     public static final String HOST = "https://www.smtu.ru";
-    private static final String UA = "Mozilla/5.0 (Linux; Android 14) Chrome/126.0 Mobile";
+
+    private static final String UA =
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36";
+    private static final int CONNECT_TIMEOUT = 15000;
+    private static final int READ_TIMEOUT = 30000;
+    private static final int MAX_BYTES = 8 * 1024 * 1024;
+    private static final int CACHE_SCHEMA = 2;
+    private static final int MAX_TEACHER_CACHES = 12;
+
     private static final Handler UI = new Handler(Looper.getMainLooper());
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "smtu-net");
+        t.setDaemon(true);
+        return t;
+    });
 
-    /** One class occurrence: a subject at a time slot on a weekday. */
-    public static final class Slot implements Comparable<Slot> {
-        public String day = "";        // Понедельник..Воскресенье
-        public String time = "";       // 08:30 - 10:00
-        public boolean upper;          // js-week-1 (верхняя) / js-week-2 (нижняя)
-        public String subject = "";
-        public String type = "";       // Лекция / Практическое занятие / ...
-        public String room = "";       // 167 Корпус У
-        public String teacher = "";
-        public String teacherId = "";  // viewperson id, "" when not linked
-        public String dateRange = "";  // "14 сентября — 21 декабря 2026"
-        public List<String> dates = new ArrayList<>(); // exact dd.MM.yyyy occurrences
-
-        @Override public int compareTo(Slot o) {
-            String a = dates.isEmpty() ? "" : dates.get(0);
-            String b = o.dates.isEmpty() ? "" : o.dates.get(0);
-            int c = a.compareTo(b);
-            return c != 0 ? c : time.compareTo(o.time);
-        }
-
-        String key() { return day + "|" + time + "|" + upper + "|" + subject + "|" + type + "|" + room + "|" + dates; }
-
-        JSONObject toJson() throws Exception {
-            JSONObject o = new JSONObject();
-            o.put("day", day).put("time", time).put("upper", upper).put("subject", subject)
-             .put("type", type).put("room", room).put("teacher", teacher)
-             .put("teacherId", teacherId).put("dateRange", dateRange)
-             .put("dates", new JSONArray(dates));
-            return o;
-        }
-
-        static Slot fromJson(JSONObject o) {
-            Slot s = new Slot();
-            s.day = o.optString("day"); s.time = o.optString("time"); s.upper = o.optBoolean("upper");
-            s.subject = o.optString("subject"); s.type = o.optString("type"); s.room = o.optString("room");
-            s.teacher = o.optString("teacher"); s.teacherId = o.optString("teacherId");
-            s.dateRange = o.optString("dateRange");
-            JSONArray d = o.optJSONArray("dates");
-            if (d != null) for (int i = 0; i < d.length(); i++) s.dates.add(d.optString(i));
-            return s;
-        }
+    /** Result callback; `error` is a human-readable message or null. */
+    public interface Callback<T> {
+        void done(T value, String error);
     }
 
-    public static final class Group {
-        public final String id, name;
-        Group(String id, String name) { this.id = id; this.name = name; }
-    }
+    private Smtu() { }
 
-    public interface Callback<T> { void done(T result, String error); }
+    // ------------------------------------------------------------------ groups
 
-    // ------------------------------------------------------------------ public
-
-    /** All groups from /ru/listschedule/, cache-first. */
-    public static void groups(Context ctx, final Callback<List<Group>> cb) {
-        final List<Group> cached = readGroupsCache(ctx);
+    /**
+     * All groups from /ru/listschedule/. The cached list (if any) is delivered
+     * immediately, then a fresh one when the network answers.
+     */
+    public static void groups(Context ctx, Callback<List<Group>> cb) {
+        Context app = ctx.getApplicationContext();
+        List<Group> cached = readGroups(app);
         if (!cached.isEmpty()) cb.done(cached, null);
-        new Thread(() -> {
+        POOL.execute(() -> {
             try {
-                List<Group> fresh = parseGroups(httpGet(HOST + "/ru/listschedule/"));
-                writeGroupsCache(ctx, fresh);
-                post(fresh, null, cb);
+                List<Group> fresh = ScheduleParser.parseGroups(httpGet(HOST + "/ru/listschedule/"));
+                if (fresh.isEmpty()) throw new IOException("список групп пуст");
+                writeGroups(app, fresh);
+                post(cb, fresh, null);
             } catch (Exception e) {
-                if (cached.isEmpty()) post(cached, "Нет сети: " + e.getMessage(), cb);
+                if (cached.isEmpty()) post(cb, cached, message(e));
             }
-        }).start();
+        });
     }
 
-    /** Full-semester schedule (group or teacher); merges fetch into cache. */
-    public static void schedule(Context ctx, boolean teacher, String id, Callback<List<Slot>> cb) {
-        new Thread(() -> {
-            try {
-                String path = teacher ? "/ru/viewschedule_new/teacher/" : "/ru/viewschedule_new/";
-                String html = httpGet(HOST + path + id + "/");
-                calibrateParity(ctx, html);
-                post(mergeAndStore(ctx, teacher, id, parseSchedule(html)), null, cb);
-            } catch (Exception e) {
-                List<Slot> cached = readSlotCache(ctx, teacher, id);
-                post(cached, cached.isEmpty() ? "Нет сети: " + e.getMessage() : null, cb);
-            }
-        }).start();
-    }
+    // ---------------------------------------------------------------- schedule
 
-    /** Synchronous cache read for instant restore. */
-    public static List<Slot> loadCacheSync(Context ctx, boolean teacher, String id) {
-        return readSlotCache(ctx, teacher, id);
+    /** The cached schedule, read synchronously; {@link Schedule#EMPTY} if none. */
+    public static Schedule cached(Context ctx, boolean teacher, String id) {
+        return readSchedule(ctx.getApplicationContext(), teacher, id);
     }
 
     /**
-     * Week parity for a date. The site prints "Сегодня: ... верхняя/нижняя
-     * неделя" on every page; every fetch recalibrates the anchor so the
-     * computation stays correct across semesters. Fallback: the week of
-     * 2026-08-31 is upper.
+     * Fetch a group's or teacher's full-semester schedule and merge it into the
+     * cache. On a network error the cached copy is returned with the error, so
+     * the UI can keep showing data and still say what went wrong.
      */
-    public static boolean isUpperWeek(Context ctx, Calendar date) {
-        SharedPreferences p = ctx.getSharedPreferences("sched", Context.MODE_PRIVATE);
-        long anchor = p.getLong("parityAnchor", 0);
-        boolean anchorUpper = p.getBoolean("parityAnchorUpper", true);
-        if (anchor == 0) { // constant fallback: Monday 2026-08-31 was upper
-            Calendar c = Calendar.getInstance();
-            c.set(2026, Calendar.AUGUST, 31, 0, 0, 0);
-            c.set(Calendar.MILLISECOND, 0);
-            anchor = c.getTimeInMillis();
-            anchorUpper = true;
-        }
-        long weeks = ((date.getTimeInMillis() - anchor) / (7L * 86400000L)) % 2;
-        return (weeks == 0) == anchorUpper;
-    }
-
-    // ----------------------------------------------------------------- parsing
-
-    /** /ru/viewschedule_new/&lt;id&gt;/ links with display names, in page order. */
-    static List<Group> parseGroups(String html) {
-        Pattern link = Pattern.compile("<a[^>]+href=\"/ru/viewschedule_new/(\\d+)/\"[^>]*>(.*?)</a>", Pattern.DOTALL);
-        Map<String, Group> byId = new TreeMap<>();
-        Matcher m = link.matcher(html);
-        while (m.find()) {
-            String name = stripTags(m.group(2)).trim();
-            if (!name.isEmpty()) byId.put(m.group(1), new Group(m.group(1), name));
-        }
-        return new ArrayList<>(byId.values());
-    }
-
-    /** Card-view parser shared by group and teacher schedule pages. */
-    static List<Slot> parseSchedule(String html) {
-        List<Slot> out = new ArrayList<>();
-        int i = 0;
-        while ((i = html.indexOf("js-day-block", i)) >= 0) {
-            int dayEnd = indexOfAny(html, new String[]{"js-day-block", "card-container-end", "</main"}, i + 12);
-            if (dayEnd < 0) dayEnd = html.length();
-            String block = html.substring(i, dayEnd);
-
-            Matcher h2 = Pattern.compile("<h2[^>]*>(.*?)</h2>", Pattern.DOTALL).matcher(block);
-            String day = h2.find() ? stripTags(h2.group(1)).trim() : "";
-
-            Matcher card = Pattern.compile("js-time-card.*?<span>(\\d\\d:\\d\\d - \\d\\d:\\d\\d)</span>(.*?)(?=js-time-card|js-day-block|$)", Pattern.DOTALL).matcher(block);
-            while (card.find()) {
-                String time = card.group(1);
-                String cardBody = card.group(2);
-                Matcher wk = Pattern.compile("js-week-container js-week-([12])(.*?)(?=js-week-container js-week|$)", Pattern.DOTALL).matcher(cardBody);
-                while (wk.find()) {
-                    Slot s = parseLesson(wk.group(2));
-                    s.day = day;
-                    s.time = time;
-                    s.upper = "1".equals(wk.group(1));
-                    if (!s.subject.isEmpty()) out.add(s);
+    public static void schedule(Context ctx, boolean teacher, String id, Callback<Schedule> cb) {
+        Context app = ctx.getApplicationContext();
+        POOL.execute(() -> {
+            Schedule cached = readSchedule(app, teacher, id);
+            try {
+                String path = teacher ? "/ru/viewschedule_new/teacher/" : "/ru/viewschedule_new/";
+                String html = httpGet(HOST + path + id + "/");
+                List<Lesson> lessons = ScheduleParser.parseSchedule(html);
+                if (lessons.isEmpty() && !cached.isEmpty()) {
+                    post(cb, cached, "Расписание на сайте пусто — показано сохранённое");
+                    return;
                 }
+                String title = ScheduleParser.parseTitle(html);
+                if (title.isEmpty() && teacher && !lessons.isEmpty()) title = lessons.get(0).teacher;
+                Schedule merged = cached.mergedWith(
+                        new Schedule(lessons, title, System.currentTimeMillis()));
+                writeSchedule(app, teacher, id, merged);
+                if (teacher) trimTeacherCaches(app);
+                post(cb, merged, null);
+            } catch (Exception e) {
+                post(cb, cached, cached.isEmpty()
+                        ? "Не удалось загрузить: " + message(e)
+                        : "Нет связи с smtu.ru — показано сохранённое");
             }
-            i = dayEnd;
-        }
-        Collections.sort(out);
-        return out;
+        });
     }
 
-    private static final Pattern SUBJECT = Pattern.compile("<h3[^>]*class=\"[^\"]*h6[^\"]*\"[^>]*>\\s*<span>(.*?)</span>", Pattern.DOTALL);
-    private static final Pattern DATES   = Pattern.compile("<p[^>]*class=\"[^\"]*text-muted[^\"]*\"[^>]*title=\"([^\"]*)\"");
-    private static final Pattern RANGE   = Pattern.compile("fa-calendar[^>]*></i>\\s*([^<]*)</p>");
-    private static final Pattern ROOM    = Pattern.compile("<p class=\"card-text[^\"]*\"[^>]*><em>(.*?)</em>", Pattern.DOTALL);
-    private static final Pattern TYPE    = Pattern.compile("<small class=\"text-muted\">([^<]*)</small>");
-    private static final Pattern PERSON  = Pattern.compile("<a href=\"/ru/viewperson/(\\d+)/\">\\s*<small>(.*?)</small>", Pattern.DOTALL);
-
-    private static Slot parseLesson(String chunk) {
-        Slot s = new Slot();
-        Matcher m = SUBJECT.matcher(chunk);
-        if (m.find()) s.subject = stripTags(m.group(1)).trim();
-        m = DATES.matcher(chunk);
-        if (m.find() && !m.group(1).isEmpty())
-            for (String d : m.group(1).split("\\s*,\\s*"))
-                if (d.matches("\\d{2}\\.\\d{2}\\.\\d{4}")) s.dates.add(d);
-        m = RANGE.matcher(chunk);
-        if (m.find()) s.dateRange = m.group(1).trim();
-        m = ROOM.matcher(chunk);
-        if (m.find()) {
-            String em = m.group(1);
-            Matcher t = TYPE.matcher(em);
-            if (t.find()) { s.type = t.group(1).trim(); s.room = stripTags(em.substring(0, t.start())).trim(); }
-            else s.room = stripTags(em).trim();
+    /** Drop every cached schedule (the group list survives). */
+    public static void clearScheduleCache(Context ctx) {
+        File[] files = ctx.getApplicationContext().getFilesDir().listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            String n = f.getName();
+            if ((n.startsWith("g_") || n.startsWith("t_")) && n.endsWith(".json")) f.delete();
         }
-        m = PERSON.matcher(chunk);
-        if (m.find()) { s.teacherId = m.group(1); s.teacher = stripTags(m.group(2)).trim(); }
-        return s;
     }
 
-    /** "Сегодня: ... верхняя|нижняя неделя" -> parity anchor at today. */
-    static void calibrateParity(Context ctx, String page) {
-        Matcher m = Pattern.compile("Сегодня:[^<]*?(верхняя|нижняя)\\s+недел").matcher(page);
-        if (!m.find()) return;
-        Calendar today = Calendar.getInstance();
-        today.set(Calendar.HOUR_OF_DAY, 0); today.set(Calendar.MINUTE, 0);
-        today.set(Calendar.SECOND, 0); today.set(Calendar.MILLISECOND, 0);
-        ctx.getSharedPreferences("sched", Context.MODE_PRIVATE).edit()
-           .putLong("parityAnchor", today.getTimeInMillis())
-           .putBoolean("parityAnchorUpper", m.group(1).equals("верхняя"))
-           .apply();
+    // -------------------------------------------------------------------- net
+
+    /** GET a page as UTF-8 text, following redirects, with one retry. */
+    static String httpGet(String url) throws IOException {
+        IOException last = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                return getOnce(url);
+            } catch (IOException e) {
+                last = e;
+            }
+        }
+        throw last;
+    }
+
+    private static String getOnce(String url) throws IOException {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(CONNECT_TIMEOUT);
+            c.setReadTimeout(READ_TIMEOUT);
+            c.setInstanceFollowRedirects(true);
+            c.setRequestProperty("User-Agent", UA);
+            c.setRequestProperty("Accept", "text/html,application/xhtml+xml");
+            c.setRequestProperty("Accept-Language", "ru-RU,ru;q=0.9");
+            c.setRequestProperty("Accept-Encoding", "gzip");
+
+            int code = c.getResponseCode();
+            if (code != HttpURLConnection.HTTP_OK)
+                throw new IOException("сайт ответил " + code);
+
+            InputStream in = c.getInputStream();
+            if ("gzip".equalsIgnoreCase(c.getContentEncoding())) in = new GZIPInputStream(in);
+            ByteArrayOutputStream buf = new ByteArrayOutputStream(64 * 1024);
+            byte[] chunk = new byte[16 * 1024];
+            int total = 0;
+            for (int n; (n = in.read(chunk)) > 0; ) {
+                total += n;
+                if (total > MAX_BYTES) throw new IOException("страница слишком большая");
+                buf.write(chunk, 0, n);
+            }
+            in.close();
+            return new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private static String message(Exception e) {
+        String m = e.getMessage();
+        if (e instanceof java.net.UnknownHostException) return "нет подключения к сети";
+        if (e instanceof java.net.SocketTimeoutException) return "сайт не отвечает";
+        return m == null || m.isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
     // ------------------------------------------------------------------ cache
 
-    private static List<Slot> mergeAndStore(Context ctx, boolean teacher, String id, List<Slot> fresh) {
-        Map<String, Slot> byKey = new TreeMap<>();
-        for (Slot s : readSlotCache(ctx, teacher, id)) byKey.put(s.key(), s);
-        for (Slot s : fresh) byKey.put(s.key(), s);
-        List<Slot> all = new ArrayList<>(byKey.values());
-        Collections.sort(all);
-        try {
-            JSONArray arr = new JSONArray();
-            for (Slot s : all) arr.put(s.toJson());
-            write(schedFile(ctx, teacher, id), new JSONObject().put("slots", arr).toString());
-        } catch (Exception ignored) { }
-        return all;
-    }
-
-    private static List<Slot> readSlotCache(Context ctx, boolean teacher, String id) {
-        try {
-            File f = schedFile(ctx, teacher, id);
-            if (!f.exists()) return new ArrayList<>();
-            JSONArray arr = new JSONObject(read(f)).getJSONArray("slots");
-            List<Slot> out = new ArrayList<>(arr.length());
-            for (int i = 0; i < arr.length(); i++) out.add(Slot.fromJson(arr.getJSONObject(i)));
-            return out;
-        } catch (Exception e) { return new ArrayList<>(); }
-    }
-
-    private static List<Group> readGroupsCache(Context ctx) {
-        try {
-            File f = new File(ctx.getFilesDir(), "groups.json");
-            if (!f.exists()) return new ArrayList<>();
-            JSONArray arr = new JSONObject(read(f)).getJSONArray("groups");
-            List<Group> out = new ArrayList<>(arr.length());
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject o = arr.getJSONObject(i);
-                out.add(new Group(o.getString("id"), o.getString("name")));
-            }
-            return out;
-        } catch (Exception e) { return new ArrayList<>(); }
-    }
-
-    private static void writeGroupsCache(Context ctx, List<Group> groups) {
-        try {
-            JSONArray arr = new JSONArray();
-            for (Group g : groups) arr.put(new JSONObject().put("id", g.id).put("name", g.name));
-            write(new File(ctx.getFilesDir(), "groups.json"), new JSONObject().put("groups", arr).toString());
-        } catch (Exception ignored) { }
-    }
-
-    private static File schedFile(Context ctx, boolean teacher, String id) {
+    private static File scheduleFile(Context ctx, boolean teacher, String id) {
         return new File(ctx.getFilesDir(), (teacher ? "t_" : "g_") + id + ".json");
     }
 
-    // ------------------------------------------------------------------- net
+    private static Schedule readSchedule(Context ctx, boolean teacher, String id) {
+        try {
+            File f = scheduleFile(ctx, teacher, id);
+            if (!f.exists()) return Schedule.EMPTY;
+            JSONObject root = new JSONObject(read(f));
+            if (root.optInt("schema") != CACHE_SCHEMA) return Schedule.EMPTY;
+            JSONArray arr = root.optJSONArray("lessons");
+            List<Lesson> lessons = new ArrayList<>(arr == null ? 0 : arr.length());
+            for (int i = 0; arr != null && i < arr.length(); i++)
+                lessons.add(fromJson(arr.getJSONObject(i)));
+            return new Schedule(lessons, root.optString("title"), root.optLong("fetchedAt"));
+        } catch (Exception e) {
+            return Schedule.EMPTY;
+        }
+    }
 
-    static String httpGet(String url) throws IOException {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(15000);
-        c.setReadTimeout(25000);
-        c.setRequestProperty("User-Agent", UA);
-        c.setRequestProperty("Accept-Language", "ru");
-        InputStream in = c.getInputStream();
-        BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) sb.append(line);
-        in.close();
-        c.disconnect();
-        return sb.toString();
+    private static void writeSchedule(Context ctx, boolean teacher, String id, Schedule s) {
+        try {
+            JSONArray arr = new JSONArray();
+            for (Lesson l : s.lessons()) arr.put(toJson(l));
+            JSONObject root = new JSONObject()
+                    .put("schema", CACHE_SCHEMA)
+                    .put("title", s.title())
+                    .put("fetchedAt", s.fetchedAt())
+                    .put("lessons", arr);
+            write(scheduleFile(ctx, teacher, id), root.toString());
+        } catch (Exception ignored) {
+            // a schedule that fails to cache is still usable in memory
+        }
+    }
+
+    private static JSONObject toJson(Lesson l) throws Exception {
+        JSONArray days = new JSONArray();
+        for (long d : l.days) days.put(d);
+        return new JSONObject()
+                .put("day", l.day).put("time", l.time).put("upper", l.upper)
+                .put("subject", l.subject).put("type", l.type).put("room", l.room)
+                .put("teacher", l.teacher).put("teacherId", l.teacherId)
+                .put("group", l.group).put("note", l.note)
+                .put("dateRange", l.dateRange).put("days", days);
+    }
+
+    private static Lesson fromJson(JSONObject o) {
+        Lesson l = new Lesson();
+        l.day = o.optString("day");
+        l.time = o.optString("time");
+        l.upper = o.optBoolean("upper");
+        l.subject = o.optString("subject");
+        l.type = o.optString("type");
+        l.room = o.optString("room");
+        l.teacher = o.optString("teacher");
+        l.teacherId = o.optString("teacherId");
+        l.group = o.optString("group");
+        l.note = o.optString("note");
+        l.dateRange = o.optString("dateRange");
+        JSONArray days = o.optJSONArray("days");
+        for (int i = 0; days != null && i < days.length(); i++) l.days.add(days.optLong(i));
+        return l;
+    }
+
+    /** Teacher schedules pile up as the user taps around: keep the newest few. */
+    private static void trimTeacherCaches(Context ctx) {
+        File[] files = ctx.getFilesDir().listFiles((dir, name) ->
+                name.startsWith("t_") && name.endsWith(".json"));
+        if (files == null || files.length <= MAX_TEACHER_CACHES) return;
+        Arrays.sort(files, new Comparator<File>() {
+            @Override public int compare(File a, File b) {
+                return Long.compare(b.lastModified(), a.lastModified());
+            }
+        });
+        for (int i = MAX_TEACHER_CACHES; i < files.length; i++) files[i].delete();
+    }
+
+    private static List<Group> readGroups(Context ctx) {
+        List<Group> out = new ArrayList<>();
+        try {
+            File f = new File(ctx.getFilesDir(), "groups.json");
+            if (!f.exists()) return out;
+            JSONArray arr = new JSONObject(read(f)).optJSONArray("groups");
+            for (int i = 0; arr != null && i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                out.add(new Group(o.getString("id"), o.getString("name")));
+            }
+        } catch (Exception ignored) {
+            out.clear();
+        }
+        return out;
+    }
+
+    private static void writeGroups(Context ctx, List<Group> groups) {
+        try {
+            JSONArray arr = new JSONArray();
+            for (Group g : groups) arr.put(new JSONObject().put("id", g.id).put("name", g.name));
+            write(new File(ctx.getFilesDir(), "groups.json"),
+                    new JSONObject().put("groups", arr).toString());
+        } catch (Exception ignored) {
+            // the list is re-fetched next launch
+        }
     }
 
     private static void write(File f, String s) throws IOException {
-        OutputStreamWriter w = new OutputStreamWriter(new FileOutputStream(f), StandardCharsets.UTF_8);
-        w.write(s);
-        w.close();
+        File tmp = new File(f.getPath() + ".tmp");
+        FileOutputStream out = new FileOutputStream(tmp);
+        try {
+            out.write(s.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        } finally {
+            out.close();
+        }
+        if (!tmp.renameTo(f)) {                       // renameTo fails if the target exists
+            f.delete();
+            if (!tmp.renameTo(f)) tmp.delete();
+        }
     }
 
     private static String read(File f) throws IOException {
-        BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) sb.append(line);
-        r.close();
-        return sb.toString();
-    }
-
-    // ------------------------------------------------------------------ utils
-
-    static String stripTags(String s) {
-        return s == null ? "" : s.replaceAll("<[^>]*>", " ")
-                            .replace("&nbsp;", " ").replace("&amp;", "&")
-                            .replace("&laquo;", "«").replace("&raquo;", "»")
-                            .replace("&mdash;", "—").replace("&ndash;", "–")
-                            .replaceAll("\\s+", " ").trim();
-    }
-
-    private static int indexOfAny(String s, String[] keys, int from) {
-        int best = -1;
-        for (String k : keys) {
-            int i = s.indexOf(k, from);
-            if (i >= 0 && (best < 0 || i < best)) best = i;
+        BufferedReader r = new BufferedReader(
+                new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8));
+        try {
+            StringBuilder sb = new StringBuilder((int) Math.min(f.length(), 1 << 20));
+            char[] buf = new char[8192];
+            for (int n; (n = r.read(buf)) > 0; ) sb.append(buf, 0, n);
+            return sb.toString();
+        } finally {
+            r.close();
         }
-        return best;
     }
 
-    /** dd.MM.yyyy -> Calendar midnight (for date matching in the UI). */
-    public static Calendar parseRu(String dd_mm_yyyy) {
-        String[] p = dd_mm_yyyy.split("\\.");
-        Calendar c = Calendar.getInstance();
-        c.set(Integer.parseInt(p[2]), Integer.parseInt(p[1]) - 1, Integer.parseInt(p[0]), 0, 0, 0);
-        c.set(Calendar.MILLISECOND, 0);
-        return c;
+    private static <T> void post(Callback<T> cb, T value, String error) {
+        UI.post(() -> cb.done(value, error));
     }
-
-    /** Calendar -> dd.MM.yyyy. */
-    public static String fmtRu(Calendar c) {
-        return String.format(Locale.US, "%1$td.%1$tm.%1$tY", c);
-    }
-
-    private static <T> void post(final T val, final String err, final Callback<T> cb) {
-        UI.post(() -> cb.done(val, err));
-    }
-
-    private Smtu() { }
 }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ids for the lesson row, which is built in code and recycled by the ListView. -->
+    <item name="lesson_stripe" type="id" />
+    <item name="lesson_time" type="id" />
+    <item name="lesson_subject" type="id" />
+    <item name="lesson_meta" type="id" />
+    <item name="lesson_room" type="id" />
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The UI is built in code and paints itself (see Ui.java); the theme only
+         has to supply the right dialog and system-bar colours. -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#1A3E8C</item>
+        <item name="android:colorAccent">#1A3E8C</item>
+        <item name="android:statusBarColor">#E3E7EE</item>
+        <item name="android:windowBackground">#EEF1F4</item>
+    </style>
+</resources>

@@ -2,609 +2,1076 @@ package com.korabel.schedule;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.provider.CalendarContract;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.GestureDetector;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.korabel.schedule.Smtu.Callback;
-import com.korabel.schedule.Smtu.Group;
-import com.korabel.schedule.Smtu.Slot;
-
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Minimal native СПбГМТУ schedule app. Data comes from www.smtu.ru only
- * (the authoritative source), parsed from the server-rendered schedule pages.
- * One Activity, programmatic views, no external libraries.
+ * The whole app: one screen showing a group's (or a teacher's) semester, in a
+ * week view or a day view.
  *
- * Header: group name, date range, upper/lower week badge, ‹ › navigation.
- * Week mode shows Mon–Sun of the selected week; day mode a single day with a
- * weekday quick-switch strip. Lessons match a day via their exact occurrence
- * dates (the title attribute on the site). Tapping a lesson opens details;
- * from there: all occurrences of the subject, or the teacher's full schedule.
+ *   header   group/teacher name, date range, week parity, ‹ › navigation
+ *   body     day headers + lesson rows; the lesson happening right now is
+ *            highlighted, past lessons of today are dimmed
+ *   gestures swipe left/right to move a day (day view) or a week (week view)
+ *
+ * Tapping a lesson opens its details: every date it occurs on, the teacher (whose
+ * own full schedule can be opened in place), the subject's other slots, adding it
+ * to the phone's calendar, and sharing it as text.
+ *
+ * Views are built in code — no XML layouts, no AndroidX, no third-party
+ * libraries; the release APK stays around 40 KB.
  */
 public final class MainActivity extends Activity {
 
     private static final String PREFS = "sched";
     private static final String PREF_GID = "groupId";
     private static final String PREF_GNAME = "groupName";
-    private static final Locale RU = new Locale("ru");
+    private static final String PREF_DAY_MODE = "dayMode";
 
-    // views
-    private TextView tvGroup, tvRange, tvWeek, tvEmpty;
+    // ------------------------------------------------------------------ state
+
+    /** What the screen currently shows: the saved group, or a teacher opened from a lesson. */
+    private String groupId, groupName;
+    private String teacherId, teacherName;      // non-null while viewing a teacher
+    private Schedule schedule = Schedule.EMPTY;
+    private boolean loading;
+
+    private boolean dayMode;
+    private long anchorMonday = Dates.monday(Dates.today());
+    private int dayOffset = Dates.dayOfWeek(Dates.today());
+
+    // ------------------------------------------------------------------ views
+
+    private Ui ui;
+    private TextView tvTitle, tvRange, tvWeek, tvMode, tvToday, tvEmpty, tvStatus;
     private LinearLayout dayStrip;
     private ListView list;
-    private Button btnMode;
+    private ProgressBar progress;
 
-    // state
-    private String groupId, groupName;
-    private List<Slot> slots = new ArrayList<>();
-    private boolean dayMode = false;
-    private Calendar anchor = monday(today());                 // Monday of shown week
-    private int dayOffset = (today().get(Calendar.DAY_OF_WEEK) + 5) % 7; // Mon=0..Sun=6
+    // ------------------------------------------------------------------ setup
 
-    private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
-
-    @Override protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    @Override protected void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        ui = new Ui(this);
         setContentView(buildUi());
-        SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+
+        SharedPreferences p = prefs();
         groupId = p.getString(PREF_GID, null);
-        groupName = p.getString(PREF_GNAME, groupId == null ? null : groupId);
-        if (savedInstanceState != null) {
-            dayMode = savedInstanceState.getBoolean("day");
-            anchor.setTimeInMillis(savedInstanceState.getLong("anchor"));
-            dayOffset = savedInstanceState.getInt("off");
+        groupName = p.getString(PREF_GNAME, groupId);
+        dayMode = p.getBoolean(PREF_DAY_MODE, false);
+
+        if (saved != null) {
+            dayMode = saved.getBoolean("dayMode", dayMode);
+            anchorMonday = saved.getLong("anchor", anchorMonday);
+            dayOffset = saved.getInt("dayOffset", dayOffset);
+            teacherId = saved.getString("teacherId");
+            teacherName = saved.getString("teacherName");
         }
-        if (groupId == null) showGroupPicker(); else load();
+
+        if (groupId == null) showGroupPicker(true);
+        else load();
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
-        out.putBoolean("day", dayMode);
-        out.putLong("anchor", anchor.getTimeInMillis());
-        out.putInt("off", dayOffset);
+        out.putBoolean("dayMode", dayMode);
+        out.putLong("anchor", anchorMonday);
+        out.putInt("dayOffset", dayOffset);
+        out.putString("teacherId", teacherId);
+        out.putString("teacherName", teacherName);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        render();               // the "now" highlight and "today" marker age quickly
+    }
+
+    @Override public void onBackPressed() {
+        if (teacherId != null) {
+            closeTeacher();
+            return;
+        }
+        super.onBackPressed();
     }
 
     // ------------------------------------------------------------------- data
 
     private void load() {
-        slots = Smtu.loadCacheSync(this, false, groupId);
-        tvGroup.setText(groupName);
-        render();          // instant from cache...
-        refresh();         // ...then silently update from the network
+        schedule = Smtu.cached(this, false, groupId);
+        if (!schedule.title().isEmpty()) groupName = schedule.title();
+        render();
+        refresh();
     }
 
     private void refresh() {
-        if (groupId == null) { showGroupPicker(); return; }
-        Smtu.schedule(this, false, groupId, (result, error) -> {
-            slots = result;
+        if (groupId == null && teacherId == null) {
+            showGroupPicker(true);
+            return;
+        }
+        boolean teacher = teacherId != null;
+        String id = teacher ? teacherId : groupId;
+        setLoading(true);
+        Smtu.schedule(this, teacher, id, (result, error) -> {
+            if (isFinishing()) return;
+            setLoading(false);
+            if (result != null && !result.isEmpty()) {
+                schedule = result;
+                if (!teacher && !result.title().isEmpty()) {
+                    groupName = result.title();
+                    prefs().edit().putString(PREF_GNAME, groupName).apply();
+                } else if (teacher && !result.title().isEmpty()) {
+                    teacherName = result.title();
+                }
+            }
             render();
             if (error != null) toast(error);
         });
     }
 
-    /** Slots occurring on a calendar day: exact-date match, or parity+weekday for rows without a date list. */
-    private List<Slot> slotsOfDay(Calendar day) {
-        String key = Smtu.fmtRu(day);
-        String dayName = dayName(day);
-        boolean upper = Smtu.isUpperWeek(this, day);
-        List<Slot> out = new ArrayList<>();
-        for (Slot s : slots) {
-            if (s.dates.contains(key)) { out.add(s); continue; }
-            if (s.dates.isEmpty() && s.upper == upper && s.day.equalsIgnoreCase(dayName)) out.add(s);
-        }
-        return out;
+    private void setLoading(boolean on) {
+        loading = on;
+        progress.setVisibility(on ? View.VISIBLE : View.GONE);
+        updateStatus();
     }
 
-    // ------------------------------------------------------------------- ui
+    private void openTeacher(Lesson lesson) {
+        if (lesson.teacherId.isEmpty()) {
+            showLessonList(lesson.teacher, schedule.ofTeacher(lesson.teacher), true);
+            return;
+        }
+        teacherId = lesson.teacherId;
+        teacherName = lesson.teacher;
+        schedule = Smtu.cached(this, true, teacherId);
+        render();
+        refresh();
+    }
+
+    private void closeTeacher() {
+        teacherId = null;
+        teacherName = null;
+        load();
+    }
+
+    // -------------------------------------------------------------------- ui
 
     private View buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFFEEF1F4);
+        LinearLayout root = Ui.column(this);
+        root.setBackgroundColor(ui.bg);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(8), dp(10), dp(8), dp(8));
-        root.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout header = Ui.column(this);
+        header.setBackgroundColor(ui.headerBg);
+        header.setPadding(dp(8), dp(10), dp(8), dp(6));
+        root.addView(header, Ui.lp(-1, -2));
 
-        LinearLayout row1 = new LinearLayout(this);
-        row1.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(row1, new LinearLayout.LayoutParams(-1, -2));
+        // row 1: ‹  title / range  ›
+        LinearLayout row1 = Ui.row(this);
+        header.addView(row1, Ui.lp(-1, -2));
 
-        Button prev = navButton("‹");
+        TextView prev = ui.iconButton(this, "‹", 26);
         prev.setOnClickListener(v -> shift(-1));
-        Button next = navButton("›");
+        TextView next = ui.iconButton(this, "›", 26);
         next.setOnClickListener(v -> shift(1));
 
-        LinearLayout title = new LinearLayout(this);
-        title.setOrientation(LinearLayout.VERTICAL);
-        title.setPadding(dp(4), 0, dp(4), 0);
+        LinearLayout titleBox = Ui.column(this);
+        titleBox.setPadding(dp(8), 0, dp(8), 0);
+        titleBox.setOnClickListener(v -> {
+            if (teacherId != null) closeTeacher();
+            else showGroupPicker(false);
+        });
 
-        tvGroup = new TextView(this);
-        tvGroup.setTextSize(20);
-        tvGroup.setTypeface(Typeface.DEFAULT_BOLD);
-        tvGroup.setTextColor(0xFF212121);
-        title.addView(tvGroup);
+        tvTitle = new TextView(this);
+        tvTitle.setTextSize(19);
+        tvTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        tvTitle.setTextColor(ui.text);
+        tvTitle.setSingleLine(true);
+        titleBox.addView(tvTitle);
 
         tvRange = new TextView(this);
         tvRange.setTextSize(13);
-        tvRange.setTextColor(0xFF616161);
-        title.addView(tvRange);
-        title.setOnClickListener(v -> showGroupPicker()); // tap title = change group
+        tvRange.setTextColor(ui.muted);
+        titleBox.addView(tvRange);
 
-        row1.addView(prev, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        row1.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
-        row1.addView(next, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        row1.addView(prev, Ui.lp(dp(40), dp(44)));
+        row1.addView(titleBox, Ui.lp(0, -2, 1f));
+        row1.addView(next, Ui.lp(dp(40), dp(44)));
 
-        LinearLayout row2 = new LinearLayout(this);
-        row2.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(row2, new LinearLayout.LayoutParams(-1, -2));
+        // row 2: mode · parity · today ......... search · refresh · menu
+        LinearLayout row2 = Ui.row(this);
+        LinearLayout.LayoutParams row2lp = Ui.lp(-1, -2);
+        row2lp.topMargin = dp(6);
+        header.addView(row2, row2lp);
 
-        btnMode = new Button(this);
-        btnMode.setTextSize(13);
-        btnMode.setAllCaps(false);
-        btnMode.setPadding(dp(12), 0, dp(12), 0);
-        btnMode.setOnClickListener(v -> { dayMode = !dayMode; render(); });
-        row2.addView(btnMode, new LinearLayout.LayoutParams(-2, dp(36)));
+        tvMode = Ui.pill(this, "", 0x00000000, ui.text);
+        tvMode.setTypeface(Typeface.DEFAULT_BOLD);
+        tvMode.setBackground(Ui.rounded(ui.dark ? 0x22FFFFFF : 0x14000000, 10, this));
+        tvMode.setOnClickListener(v -> setDayMode(!dayMode));
+        row2.addView(tvMode, Ui.lp(-2, -2));
 
-        tvWeek = new TextView(this);
-        tvWeek.setTextSize(12);
+        tvWeek = Ui.pill(this, "", ui.upperBadge, Color.WHITE);
         tvWeek.setTypeface(Typeface.DEFAULT_BOLD);
-        tvWeek.setPadding(dp(12), dp(4), dp(12), dp(4));
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
-        wp.leftMargin = dp(8);
-        row2.addView(tvWeek, wp);
+        LinearLayout.LayoutParams weekLp = Ui.lp(-2, -2);
+        weekLp.leftMargin = dp(6);
+        row2.addView(tvWeek, weekLp);
 
-        Button refresh = new Button(this);
-        refresh.setText("⟳");
-        refresh.setTextSize(16);
-        refresh.setPadding(0, 0, 0, 0);
-        refresh.setOnClickListener(v -> refresh());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(36), dp(36));
-        rp.leftMargin = dp(8);
-        row2.addView(refresh, rp);
+        tvToday = Ui.pill(this, "Сегодня", ui.dark ? 0x22FFFFFF : 0x14000000, ui.text);
+        tvToday.setOnClickListener(v -> goToday());
+        LinearLayout.LayoutParams todayLp = Ui.lp(-2, -2);
+        todayLp.leftMargin = dp(6);
+        row2.addView(tvToday, todayLp);
 
-        View gap = new View(this);
-        row2.addView(gap, new LinearLayout.LayoutParams(0, 1, 1f));
+        row2.addView(new View(this), Ui.lp(0, 1, 1f));
 
-        Button info = new Button(this);
-        info.setText("ⓘ");
-        info.setTextSize(16);
-        info.setAllCaps(false);
-        info.setPadding(0, 0, 0, 0);
-        info.setOnClickListener(v -> showInfo());
-        row2.addView(info, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        TextView search = ui.iconButton(this, "⌕", 18);   // ⌕
+        search.setOnClickListener(v -> showSearch());
+        TextView reload = ui.iconButton(this, "⟳", 18);   // ⟳
+        reload.setOnClickListener(v -> refresh());
+        TextView menu = ui.iconButton(this, "⋮", 18);     // ⋮
+        menu.setOnClickListener(v -> showMenu());
+        LinearLayout.LayoutParams btn = Ui.lp(dp(36), dp(32));
+        btn.leftMargin = dp(4);
+        row2.addView(search, btn);
+        row2.addView(reload, Ui.lp(dp(36), dp(32)));
+        row2.addView(menu, Ui.lp(dp(36), dp(32)));
 
-        dayStrip = new LinearLayout(this);
-        dayStrip.setOrientation(LinearLayout.HORIZONTAL);
-        header.addView(dayStrip, new LinearLayout.LayoutParams(-1, -2));
+        // row 3: Mon..Sun strip (day view only)
+        dayStrip = Ui.row(this);
+        LinearLayout.LayoutParams stripLp = Ui.lp(-1, -2);
+        stripLp.topMargin = dp(6);
+        header.addView(dayStrip, stripLp);
 
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setIndeterminate(true);
+        progress.setVisibility(View.GONE);
+        root.addView(progress, Ui.lp(-1, dp(3)));
+
+        // body
         FrameLayout body = new FrameLayout(this);
-        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
+        root.addView(body, Ui.lp(-1, 0, 1f));
 
         tvEmpty = new TextView(this);
         tvEmpty.setGravity(Gravity.CENTER);
-        tvEmpty.setTextColor(0xFF9E9E9E);
+        tvEmpty.setTextColor(ui.muted);
         tvEmpty.setTextSize(15);
-        tvEmpty.setPadding(dp(24), dp(24), dp(24), dp(24));
+        tvEmpty.setPadding(dp(24), dp(32), dp(24), dp(24));
         body.addView(tvEmpty, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
 
         list = new ListView(this);
         list.setDivider(null);
-        list.setPadding(dp(8), 0, dp(8), dp(16));
+        list.setPadding(dp(8), dp(8), dp(8), dp(16));
         list.setClipToPadding(false);
-        body.addView(list, new FrameLayout.LayoutParams(-1, -1));
         list.setEmptyView(tvEmpty);
+        attachSwipe(list);
+        body.addView(list, new FrameLayout.LayoutParams(-1, -1));
+
+        tvStatus = new TextView(this);
+        tvStatus.setTextSize(11);
+        tvStatus.setTextColor(ui.muted);
+        tvStatus.setPadding(dp(12), dp(4), dp(12), dp(6));
+        root.addView(tvStatus, Ui.lp(-1, -2));
 
         return root;
     }
 
-    private Button navButton(String label) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setTextSize(24);
-        b.setPadding(0, 0, 0, 0);
-        return b;
+    /** Horizontal flings move through the schedule; vertical scrolling is untouched. */
+    private void attachSwipe(View target) {
+        GestureDetector detector = new GestureDetector(this,
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override public boolean onFling(MotionEvent e1, MotionEvent e2,
+                                                     float vx, float vy) {
+                        if (e1 == null || e2 == null) return false;
+                        float dx = e2.getX() - e1.getX(), dy = e2.getY() - e1.getY();
+                        if (Math.abs(dx) < dp(64) || Math.abs(dx) < Math.abs(dy) * 1.5f) return false;
+                        shift(dx < 0 ? 1 : -1);
+                        return true;
+                    }
+                });
+        target.setOnTouchListener((v, event) -> {
+            if (!detector.onTouchEvent(event)) return false;
+            v.performClick();               // keep talkback and click handling intact
+            return true;
+        });
     }
 
     // -------------------------------------------------------------- rendering
 
     private void render() {
-        btnMode.setText(dayMode ? "▶ Неделя" : "▶ День");
+        boolean teacher = teacherId != null;
+        tvTitle.setText(teacher ? (teacherName == null ? "Преподаватель" : teacherName)
+                                : (groupName == null ? "Группа" : groupName));
+        tvMode.setText(dayMode ? "День" : "Неделя");
+        tvRange.setText(rangeLabel(teacher));
+
+        long shown = shownDay();
+        boolean upper = schedule.isUpper(shown);
+        tvWeek.setText(upper ? "ВЕРХНЯЯ" : "НИЖНЯЯ");
+        tvWeek.setBackground(Ui.rounded(upper ? ui.upperBadge : ui.lowerBadge, 10, this));
+        tvWeek.setVisibility(schedule.isEmpty() ? View.GONE : View.VISIBLE);
+        tvToday.setVisibility(isTodayShown() ? View.GONE : View.VISIBLE);
+
         buildDayStrip();
+        list.setAdapter(new RowAdapter(buildRows()));
+        tvEmpty.setText(emptyLabel());
+        updateStatus();
+    }
 
+    private List<Object> buildRows() {
         List<Object> rows = new ArrayList<>();
+        if (schedule.isEmpty()) return rows;   // let the empty view speak instead
         if (dayMode) {
-            Calendar day = plus(anchor, dayOffset);
-            rows.add(new DayHeader(day, isToday(day)));
-            rows.addAll(slotsOfDay(day));
-        } else {
-            for (int i = 0; i < 7; i++) {
-                Calendar day = plus(anchor, i);
-                rows.add(new DayHeader(day, isToday(day)));
-                rows.addAll(slotsOfDay(day));
-            }
+            long day = anchorMonday + dayOffset;
+            List<Lesson> lessons = schedule.on(day);
+            if (lessons.isEmpty()) return rows;
+            rows.add(new DayHeader(day));
+            rows.addAll(lessons);
+            return rows;
         }
-        tvEmpty.setText(slots.isEmpty()
-                ? "Нет данных.\nНажмите ⟳ при подключении к сети."
-                : "Занятий нет.");
-
-        tvRange.setText(rangeText());
-        boolean upper = Smtu.isUpperWeek(this, dayMode ? plus(anchor, dayOffset) : anchor);
-        tvWeek.setText(upper ? "ВЕРХНЯЯ НЕДЕЛЯ" : "НИЖНЯЯ НЕДЕЛЯ");
-        tvWeek.setBackgroundColor(upper ? 0xFF1A237E : 0xFF00695C);
-        tvWeek.setTextColor(Color.WHITE);
-
-        list.setAdapter(new RowsAdapter(rows));
+        for (int i = 0; i < 7; i++) {
+            long day = anchorMonday + i;
+            List<Lesson> lessons = schedule.on(day);
+            if (lessons.isEmpty() && i >= 5) continue;         // hide empty weekends
+            rows.add(new DayHeader(day));
+            if (lessons.isEmpty()) rows.add(new FreeDay());
+            else rows.addAll(lessons);
+        }
+        // a week entirely outside the semester says so instead of five "свободно"
+        for (Object row : rows) if (row instanceof Lesson) return rows;
+        rows.clear();
+        return rows;
     }
 
-    private String rangeText() {
-        SimpleDateFormat df = new SimpleDateFormat("d MMMM", RU);
-        if (dayMode)
-            return new SimpleDateFormat("d MMMM, EEEE", RU).format(plus(anchor, dayOffset).getTime());
-        String a = df.format(anchor.getTime());
-        String b = df.format(plus(anchor, 6).getTime());
-        return sameMonth(anchor, plus(anchor, 6)) ? a.split(" ")[0] + " – " + b : a + " – " + b;
-    }
-
-    private static boolean sameMonth(Calendar a, Calendar b) {
-        return a.get(Calendar.YEAR) == b.get(Calendar.YEAR)
-            && a.get(Calendar.MONTH) == b.get(Calendar.MONTH);
-    }
-
-    // ------------------------------------------------------------- navigation
-
-    private void shift(int dir) {
+    private String rangeLabel(boolean teacher) {
         if (dayMode) {
-            dayOffset += dir;
-            while (dayOffset > 6) { dayOffset -= 7; anchor.add(Calendar.DAY_OF_YEAR, 7); }
-            while (dayOffset < 0) { dayOffset += 7; anchor.add(Calendar.DAY_OF_YEAR, -7); }
-        } else {
-            anchor.add(Calendar.DAY_OF_YEAR, 7 * dir);
+            long day = anchorMonday + dayOffset;
+            return Dates.weekdayDayMonth(day) + (isToday(day) ? " · сегодня" : "");
         }
-        render(); // full semester is already loaded: no refetch needed
+        String range = Dates.range(anchorMonday, anchorMonday + 6);
+        return teacher ? range + " · все группы" : range;
+    }
+
+    private String emptyLabel() {
+        if (schedule.isEmpty())
+            return loading ? "Загружаю расписание…"
+                    : "Расписание не загружено.\nНажмите ⟳ при подключении к сети.";
+        long shown = shownDay();
+        if (!schedule.inSemester(shown))
+            return "Вне семестра.\nРасписание есть с " + Dates.dayMonth(schedule.firstDay())
+                    + " по " + Dates.dayMonthYear(schedule.lastDay()) + ".";
+        String empty = dayMode ? "Занятий нет — свободный день." : "На этой неделе занятий нет.";
+        long next = schedule.nextDayWithLessons(shown + (dayMode ? 1 : 7), +1);
+        return next == Dates.NO_DATE ? empty
+                : empty + "\nСледующие занятия: "
+                        + Dates.weekdayDayMonth(next).toLowerCase(Locale.ROOT);
+    }
+
+    private void updateStatus() {
+        if (loading) {
+            tvStatus.setText("Обновляю с smtu.ru…");
+            return;
+        }
+        if (schedule.isEmpty()) {
+            tvStatus.setText("");
+            return;
+        }
+        StringBuilder s = new StringBuilder();
+        s.append(schedule.size()).append(' ').append(plural(schedule.size(),
+                "занятие", "занятия", "занятий"));
+        if (schedule.fetchedAt() > 0) {
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis(schedule.fetchedAt());
+            long day = Dates.toEpochDay(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1,
+                    c.get(Calendar.DAY_OF_MONTH));
+            String when = day == Dates.today() ? "сегодня" : Dates.dayMonth(day);
+            s.append(" · обновлено ").append(when).append(", ")
+             .append(String.format(Locale.ROOT, "%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)));
+        }
+        if (schedule.parity().isDerived() && schedule.parity().agreement() < 0.9)
+            s.append(" · чётность недель неточная");
+        tvStatus.setText(s);
     }
 
     private void buildDayStrip() {
         dayStrip.setVisibility(dayMode ? View.VISIBLE : View.GONE);
         dayStrip.removeAllViews();
         if (!dayMode) return;
-        String[] names = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
         for (int i = 0; i < 7; i++) {
-            final int idx = i;
-            TextView b = new TextView(this);
-            b.setText(names[i]);
-            b.setGravity(Gravity.CENTER);
-            b.setTextSize(13);
-            boolean sel = i == dayOffset;
-            b.setTypeface(sel ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            b.setTextColor(sel ? 0xFF1A237E : 0xFF757575);
-            b.setBackgroundColor(sel ? 0xFFDDE1F9 : Color.TRANSPARENT);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(36), 1f);
-            lp.setMargins(dp(2), dp(2), dp(2), dp(2));
-            b.setOnClickListener(v -> { dayOffset = idx; render(); });
-            dayStrip.addView(b, lp);
+            final int index = i;
+            long day = anchorMonday + i;
+            boolean selected = i == dayOffset;
+            int count = schedule.on(day).size();
+
+            LinearLayout cell = Ui.column(this);
+            cell.setGravity(Gravity.CENTER);
+            cell.setBackground(Ui.rounded(selected ? (ui.dark ? 0x33FFFFFF : 0x1A1A3E8C)
+                                                   : Color.TRANSPARENT, 8, this));
+            cell.setOnClickListener(v -> {
+                dayOffset = index;
+                render();
+            });
+
+            TextView name = new TextView(this);
+            name.setText(Dates.DAY_SHORT[i]);
+            name.setTextSize(12);
+            name.setGravity(Gravity.CENTER);
+            name.setTypeface(selected ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            name.setTextColor(isToday(day) ? ui.accent : (selected ? ui.text : ui.muted));
+            cell.addView(name, Ui.lp(-1, -2));
+
+            TextView dot = new TextView(this);
+            dot.setText(count == 0 ? "·" : String.valueOf(count));
+            dot.setTextSize(10);
+            dot.setGravity(Gravity.CENTER);
+            dot.setTextColor(count == 0 ? ui.muted : ui.accent);
+            cell.addView(dot, Ui.lp(-1, -2));
+
+            LinearLayout.LayoutParams lp = Ui.lp(0, dp(40), 1f);
+            lp.setMargins(dp(2), 0, dp(2), 0);
+            dayStrip.addView(cell, lp);
         }
     }
 
-    // ----------------------------------------------------------- list adapter
+    // ------------------------------------------------------------- navigation
 
-    private static final class DayHeader {
-        final Calendar day; final boolean today;
-        DayHeader(Calendar d, boolean t) { day = d; today = t; }
+    private void shift(int direction) {
+        if (dayMode) {
+            dayOffset += direction;
+            while (dayOffset > 6) {
+                dayOffset -= 7;
+                anchorMonday += 7;
+            }
+            while (dayOffset < 0) {
+                dayOffset += 7;
+                anchorMonday -= 7;
+            }
+        } else {
+            anchorMonday += 7L * direction;
+        }
+        render();                 // the whole semester is already loaded
     }
 
-    private final class RowsAdapter extends BaseAdapter {
+    private void goToday() {
+        anchorMonday = Dates.monday(Dates.today());
+        dayOffset = Dates.dayOfWeek(Dates.today());
+        render();
+    }
+
+    private void setDayMode(boolean on) {
+        dayMode = on;
+        prefs().edit().putBoolean(PREF_DAY_MODE, on).apply();
+        render();
+    }
+
+    private long shownDay() {
+        return dayMode ? anchorMonday + dayOffset : anchorMonday;
+    }
+
+    private boolean isTodayShown() {
+        long today = Dates.today();
+        return dayMode ? anchorMonday + dayOffset == today
+                       : Dates.monday(today) == anchorMonday;
+    }
+
+    private static boolean isToday(long epochDay) {
+        return epochDay == Dates.today();
+    }
+
+    // ------------------------------------------------------------ list adapter
+
+    /** A day's heading inside the list. */
+    private static final class DayHeader {
+        final long day;
+        DayHeader(long day) { this.day = day; }
+    }
+
+    /** Placeholder for a day with no lessons in the week view. */
+    private static final class FreeDay { }
+
+    private final class RowAdapter extends BaseAdapter {
         private final List<Object> rows;
-        RowsAdapter(List<Object> rows) { this.rows = rows; }
+
+        RowAdapter(List<Object> rows) { this.rows = rows; }
 
         @Override public int getCount() { return rows.size(); }
         @Override public Object getItem(int i) { return rows.get(i); }
         @Override public long getItemId(int i) { return i; }
+        @Override public int getViewTypeCount() { return 3; }
+
+        @Override public int getItemViewType(int i) {
+            Object o = rows.get(i);
+            if (o instanceof DayHeader) return 0;
+            return o instanceof FreeDay ? 1 : 2;
+        }
+
+        @Override public boolean isEnabled(int i) { return getItemViewType(i) == 2; }
 
         @Override public View getView(int i, View convert, ViewGroup parent) {
             Object o = rows.get(i);
-            return (o instanceof DayHeader) ? headerView((DayHeader) o, convert)
-                                            : lessonView((Slot) o, convert);
+            if (o instanceof DayHeader) return headerView((DayHeader) o, convert);
+            if (o instanceof FreeDay) return freeDayView(convert);
+            return lessonView((Lesson) o, dayOf(i), convert);
         }
 
-        private View headerView(DayHeader h, View convert) {
-            TextView tv = (convert instanceof TextView) ? (TextView) convert : new TextView(MainActivity.this);
-            String label = new SimpleDateFormat("EEEE, d MMMM", RU).format(h.day.getTime());
-            label = Character.toUpperCase(label.charAt(0)) + label.substring(1);
-            tv.setText(label + (h.today ? "  •  сегодня" : ""));
-            tv.setTextSize(13);
-            tv.setTypeface(Typeface.DEFAULT_BOLD);
-            tv.setTextColor(0xFF37474F);
-            tv.setBackgroundColor(h.today ? 0xFFE8EAF6 : 0x11000000);
-            tv.setPadding(dp(12), dp(10), dp(12), dp(10));
-            return tv;
+        /** Which calendar day the lesson at that row belongs to. */
+        private long dayOf(int index) {
+            for (int i = index; i >= 0; i--)
+                if (rows.get(i) instanceof DayHeader) return ((DayHeader) rows.get(i)).day;
+            return shownDay();
         }
+    }
 
-        private View lessonView(final Slot s, View convert) {
-            LinearLayout row = (convert instanceof LinearLayout) ? (LinearLayout) convert : null;
-            if (row == null) {
-                row = new LinearLayout(MainActivity.this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(12), dp(10), dp(12), dp(10));
-                row.setBackgroundColor(Color.WHITE);
+    private View headerView(DayHeader h, View convert) {
+        TextView tv = convert instanceof TextView ? (TextView) convert : new TextView(this);
+        String label = Dates.DAY_FULL[Dates.dayOfWeek(h.day)] + ", " + Dates.dayMonth(h.day);
+        tv.setText(isToday(h.day) ? label + "  ·  сегодня" : label);
+        tv.setTextSize(13);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setTextColor(isToday(h.day) ? ui.accent : ui.muted);
+        tv.setPadding(dp(6), dp(14), dp(6), dp(6));
+        tv.setBackgroundColor(Color.TRANSPARENT);
+        return tv;
+    }
 
-                TextView time = new TextView(MainActivity.this);
-                time.setId(1);
-                time.setTextSize(13);
-                time.setTextColor(0xFF1A237E);
-                time.setTypeface(Typeface.DEFAULT_BOLD);
-                row.addView(time, new LinearLayout.LayoutParams(dp(84), -2));
+    private View freeDayView(View convert) {
+        TextView tv = convert instanceof TextView ? (TextView) convert : new TextView(this);
+        tv.setText("свободно");
+        tv.setTextSize(13);
+        tv.setTypeface(Typeface.DEFAULT);
+        tv.setTextColor(ui.muted);
+        tv.setPadding(dp(14), dp(8), dp(14), dp(10));
+        tv.setBackground(Ui.rounded(ui.dark ? 0x0DFFFFFF : 0x0A000000, 10, this));
+        return tv;
+    }
 
-                LinearLayout mid = new LinearLayout(MainActivity.this);
-                mid.setId(2);
-                mid.setOrientation(LinearLayout.VERTICAL);
-                row.addView(mid, new LinearLayout.LayoutParams(0, -2, 1f));
+    private View lessonView(Lesson lesson, long day, View convert) {
+        LinearLayout row = convert instanceof LinearLayout ? (LinearLayout) convert
+                                                           : buildLessonRow();
+        View stripe = row.findViewById(R.id.lesson_stripe);
+        TextView time = row.findViewById(R.id.lesson_time);
+        TextView subject = row.findViewById(R.id.lesson_subject);
+        TextView meta = row.findViewById(R.id.lesson_meta);
+        TextView room = row.findViewById(R.id.lesson_room);
 
-                TextView subj = new TextView(MainActivity.this);
-                subj.setId(3);
-                subj.setTextSize(15);
-                subj.setTextColor(0xFF212121);
-                mid.addView(subj);
+        boolean now = isToday(day)
+                && Dates.nowMinutes() >= lesson.startMinutes()
+                && Dates.nowMinutes() < lesson.endMinutes();
+        boolean past = isToday(day) && Dates.nowMinutes() >= lesson.endMinutes();
 
-                TextView meta = new TextView(MainActivity.this);
-                meta.setId(4);
-                meta.setTextSize(12);
-                meta.setTextColor(0xFF757575);
-                mid.addView(meta);
+        stripe.setBackgroundColor(Ui.typeColor(lesson.type));
+        time.setText(lesson.time.replace(" - ", "\n"));
+        time.setTextColor(now ? ui.accent : ui.muted);
+        subject.setText(lesson.subject);
+        subject.setTextColor(ui.text);
+        subject.setTypeface(now ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
 
-                TextView room = new TextView(MainActivity.this);
-                room.setId(5);
-                room.setTextSize(12);
-                room.setTextColor(0xFF37474F);
-                room.setGravity(Gravity.END);
-                row.addView(room, new LinearLayout.LayoutParams(dp(96), -2));
-            }
-            TextView time = row.findViewById(1), subj = row.findViewById(3),
-                     meta = row.findViewById(4), room = row.findViewById(5);
-            time.setText(s.time.replace(" - ", "\n– "));
-            subj.setText(s.subject);
-            meta.setText(s.teacher.isEmpty() ? s.type : s.type + " · " + s.teacher);
-            room.setText(s.room);
-            row.setOnClickListener(v -> showLesson(s));
-            return row;
-        }
+        // on a teacher's own page their name is on every row, so show the group instead
+        StringBuilder m = new StringBuilder(lesson.type);
+        String who = teacherId != null ? lesson.group : lesson.teacher;
+        if (!who.isEmpty()) m.append(m.length() > 0 ? " · " : "").append(who);
+        if (!lesson.note.isEmpty()) m.append(m.length() > 0 ? " · " : "").append(lesson.note);
+        meta.setText(m);
+        meta.setTextColor(ui.muted);
+
+        room.setText(lesson.room);
+        room.setTextColor(ui.muted);
+
+        row.setBackground(Ui.rounded(now ? Ui.blend(ui.card, ui.accent, 0.14f) : ui.card, 12, this));
+        row.setAlpha(past ? 0.55f : 1f);
+        row.setOnClickListener(v -> showLesson(lesson, day));
+        return row;
+    }
+
+    private LinearLayout buildLessonRow() {
+        LinearLayout row = Ui.row(this);
+        row.setPadding(0, dp(10), dp(12), dp(10));
+        LinearLayout.LayoutParams rowLp = Ui.lp(-1, -2);
+        row.setLayoutParams(rowLp);
+
+        View stripe = new View(this);
+        stripe.setId(R.id.lesson_stripe);
+        LinearLayout.LayoutParams stripeLp = Ui.lp(dp(4), dp(44));
+        stripeLp.rightMargin = dp(10);
+        row.addView(stripe, stripeLp);
+
+        TextView time = new TextView(this);
+        time.setId(R.id.lesson_time);
+        time.setTextSize(12);
+        time.setTypeface(Typeface.DEFAULT_BOLD);
+        time.setLineSpacing(0, 0.95f);
+        row.addView(time, Ui.lp(dp(48), -2));
+
+        LinearLayout middle = Ui.column(this);
+        LinearLayout.LayoutParams midLp = Ui.lp(0, -2, 1f);
+        midLp.leftMargin = dp(8);
+        row.addView(middle, midLp);
+
+        TextView subject = new TextView(this);
+        subject.setId(R.id.lesson_subject);
+        subject.setTextSize(15);
+        middle.addView(subject);
+
+        TextView meta = new TextView(this);
+        meta.setId(R.id.lesson_meta);
+        meta.setTextSize(12);
+        middle.addView(meta);
+
+        TextView room = new TextView(this);
+        room.setId(R.id.lesson_room);
+        room.setTextSize(12);
+        room.setGravity(Gravity.END);
+        row.addView(room, Ui.lp(dp(80), -2));
+
+        return row;
     }
 
     // ---------------------------------------------------------------- dialogs
 
-    private void showLesson(Slot s) {
+    private void showLesson(Lesson lesson, long day) {
         StringBuilder m = new StringBuilder();
-        m.append(s.day).append(", ").append(s.time.replace(" - ", " – ")).append('\n')
-         .append(s.type);
-        if (!s.room.isEmpty()) m.append(" · ").append(s.room);
-        m.append('\n').append(s.upper ? "Верхняя" : "Нижняя").append(" неделя");
-        if (!s.dateRange.isEmpty()) m.append('\n').append('\n').append(s.dateRange);
-        if (!s.dates.isEmpty()) {
-            m.append('\n');
-            for (int i = 0; i < s.dates.size(); i++) {
-                if (i > 0) m.append(i % 4 == 0 ? '\n' : ", ");
-                m.append(s.dates.get(i));
+        m.append(Dates.weekdayDayMonth(day)).append(", ")
+         .append(lesson.time.replace(" - ", " – ")).append('\n');
+        if (!lesson.type.isEmpty()) m.append(lesson.type);
+        if (!lesson.room.isEmpty()) m.append(m.length() > 0 ? " · " : "").append(lesson.room);
+        m.append('\n').append(lesson.upper ? "Верхняя" : "Нижняя").append(" неделя");
+        if (!lesson.group.isEmpty()) m.append(" · группа ").append(lesson.group);
+        if (!lesson.teacher.isEmpty()) m.append("\n\nПреподаватель: ").append(lesson.teacher);
+        if (!lesson.note.isEmpty()) m.append("\n\n").append(lesson.note);
+        if (!lesson.dateRange.isEmpty()) m.append("\n\n").append(lesson.dateRange);
+        if (!lesson.days.isEmpty()) {
+            m.append("\n\nВсего занятий: ").append(lesson.days.size()).append('\n');
+            for (int i = 0; i < lesson.days.size(); i++) {
+                if (i > 0) m.append(i % 4 == 0 ? "\n" : ", ");
+                m.append(Dates.formatRu(lesson.days.get(i)));
             }
         }
-        if (!s.teacher.isEmpty()) m.append('\n').append('\n').append("Преподаватель: ").append(s.teacher);
 
-        AlertDialog.Builder b = new AlertDialog.Builder(this);
-        b.setTitle(s.subject);
-        b.setMessage(m);
-        b.setNeutralButton("О предмете", (d, w) -> showSubject(s.subject));
-        if (!s.teacher.isEmpty())
-            b.setPositiveButton("Преподаватель", (d, w) -> showTeacher(s));
-        b.setNegativeButton("Закрыть", null);
-        b.show();
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(lesson.subject)
+                .setMessage(m)
+                .setNeutralButton("Ещё", null)
+                .setNegativeButton("Закрыть", null);
+        if (!lesson.teacher.isEmpty())
+            b.setPositiveButton("Преподаватель", (d, w) -> openTeacher(lesson));
+        AlertDialog dialog = b.create();
+        dialog.show();
+        // keep the dialog open: "Ещё" opens a second menu instead of dismissing
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL)
+              .setOnClickListener(v -> showLessonExtras(lesson, day, dialog));
     }
 
-    /** All occurrences of a subject in the loaded schedule. */
-    private void showSubject(String subject) {
-        List<Slot> of = new ArrayList<>();
-        for (Slot s : slots) if (s.subject.equals(subject)) of.add(s);
-        Collections.sort(of);
-        showSlotList(subject, of);
+    private void showLessonExtras(Lesson lesson, long day, AlertDialog parent) {
+        List<String> actions = new ArrayList<>();
+        actions.add("Все занятия по предмету");
+        actions.add("Добавить в календарь");
+        actions.add("Поделиться");
+        if (!lesson.group.isEmpty() && teacherId != null) actions.add("Расписание группы " + lesson.group);
+
+        new AlertDialog.Builder(this)
+                .setTitle(lesson.subject)
+                .setItems(actions.toArray(new String[0]), (d, which) -> {
+                    parent.dismiss();       // the action replaces what is on screen
+                    switch (which) {
+                        case 0:
+                            showLessonList("Предмет: " + lesson.subject,
+                                    schedule.ofSubject(lesson.subject), false);
+                            break;
+                        case 1:
+                            addToCalendar(lesson, day);
+                            break;
+                        case 2:
+                            share(lesson.subject, lessonText(lesson, day));
+                            break;
+                        default:
+                            openGroupByName(lesson.group);
+                    }
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
     }
 
-    /**
-     * Teacher info: their full schedule across all groups, fetched from
-     * smtu.ru by the viewperson id found in the schedule page. Falls back to
-     * their lessons within this group's schedule.
-     */
-    private void showTeacher(Slot lesson) {
-        String teacher = lesson.teacher;
-        if (lesson.teacherId.isEmpty()) {
-            List<Slot> of = new ArrayList<>();
-            for (Slot s : slots) if (s.teacher.equals(teacher)) of.add(s);
-            Collections.sort(of);
-            showSlotList(teacher, of);
+    private void showLessonList(String title, List<Lesson> lessons, boolean withSubject) {
+        if (lessons.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle(title)
+                    .setMessage("Занятий не найдено.")
+                    .setPositiveButton("Закрыть", null).show();
             return;
         }
-        final AlertDialog loading = new AlertDialog.Builder(this)
-                .setTitle(teacher)
-                .setMessage("Загрузка расписания преподавателя…")
-                .setNegativeButton("Закрыть", null).create();
-        loading.show();
-        Smtu.schedule(this, true, lesson.teacherId, (result, error) -> {
-            loading.dismiss();
-            List<Slot> toShow = (result != null && !result.isEmpty()) ? result : null;
-            if (toShow == null) {
-                toShow = new ArrayList<>();
-                for (Slot s : slots) if (s.teacher.equals(teacher)) toShow.add(s);
-                if (error != null) toast(error);
-            }
-            Collections.sort(toShow);
-            showSlotList(teacher, toShow);
-        });
-    }
-
-    private void showSlotList(String title, List<Slot> of) {
-        CharSequence[] items = new CharSequence[of.size()];
-        for (int i = 0; i < of.size(); i++) {
-            Slot s = of.get(i);
-            StringBuilder it = new StringBuilder();
-            if (!s.dates.isEmpty()) it.append(s.dates.get(0));
-            else it.append(shortDay(s.day));
-            it.append(" · ").append(s.time.replace(" - ", " – "))
-              .append(" · ").append(s.subject);
-            if (!s.type.isEmpty()) it.append(" (").append(s.type).append(")");
-            if (!s.room.isEmpty()) it.append(" · ").append(s.room);
-            items[i] = it.toString();
+        String[] items = new String[lessons.size()];
+        for (int i = 0; i < lessons.size(); i++) {
+            Lesson l = lessons.get(i);
+            String when = l.days.isEmpty() ? l.day
+                    : Dates.DAY_SHORT[Dates.dayOfWeek(l.days.get(0))] + " " + Dates.formatRu(l.days.get(0));
+            items[i] = when + " · " + l.oneLine(withSubject);
         }
-        AlertDialog.Builder b = new AlertDialog.Builder(this);
-        b.setTitle(title);
-        if (of.isEmpty()) b.setMessage("Занятий не найдено.");
-        else b.setItems(items, null);
-        b.setPositiveButton("Закрыть", null);
-        b.show();
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setItems(items, (d, which) -> {
+                    Lesson l = lessons.get(which);
+                    long day = l.days.isEmpty() ? shownDay() : l.days.get(0);
+                    goTo(day);
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
     }
 
-    // ------------------------------------------------------------ group picker
+    /** Jump the main view to a specific date. */
+    private void goTo(long day) {
+        anchorMonday = Dates.monday(day);
+        dayOffset = Dates.dayOfWeek(day);
+        render();
+    }
 
-    private void showGroupPicker() {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
+    private void showSearch() {
+        final EditText input = new EditText(this);
+        input.setHint("Предмет, преподаватель, аудитория");
+        input.setSingleLine(true);
+
+        LinearLayout box = Ui.column(this);
         int pad = dp(16);
         box.setPadding(pad, pad, pad, 0);
+        box.addView(input, Ui.lp(-1, -2));
 
-        EditText search = new EditText(this);
-        search.setHint("Группа, например 12826-61");
-        box.addView(search, new LinearLayout.LayoutParams(-1, -2));
+        final TextView hint = new TextView(this);
+        hint.setTextSize(12);
+        hint.setTextColor(ui.muted);
+        hint.setPadding(0, dp(8), 0, 0);
+        box.addView(hint, Ui.lp(-1, -2));
 
-        final List<Group> all = new ArrayList<>();
-        final List<Group> filtered = new ArrayList<>();
-        ListView lv = new ListView(this);
-        box.addView(lv, new LinearLayout.LayoutParams(-1, dp(320)));
+        final ListView results = new ListView(this);
+        final List<Lesson> found = new ArrayList<>();
+        final ArrayAdapter<String> adapter =
+                new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
+        results.setAdapter(adapter);
+        box.addView(results, Ui.lp(-1, dp(300)));
 
-        final android.widget.ArrayAdapter<String> adapter =
-                new android.widget.ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
-        lv.setAdapter(adapter);
-
-        search.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b2, int c) { }
-            @Override public void onTextChanged(CharSequence s, int a, int b2, int c) { }
-            @Override public void afterTextChanged(Editable e) {
-                applyFilter(e.toString(), all, filtered, adapter);
-            }
-        });
-
-        final AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("Ваша группа")
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Поиск по расписанию")
                 .setView(box)
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton("Закрыть", null)
                 .create();
 
-        lv.setOnItemClickListener((parent, view, pos, id) -> {
-            Group picked = filtered.get(pos);
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString(PREF_GID, picked.id).putString(PREF_GNAME, picked.name).apply();
-            groupId = picked.id;
-            groupName = picked.name;
-            anchor = monday(today());
-            dayOffset = (today().get(Calendar.DAY_OF_WEEK) + 5) % 7;
-            dlg.dismiss();
-            load();
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable e) {
+                found.clear();
+                found.addAll(schedule.search(e.toString()));
+                adapter.clear();
+                for (Lesson l : found) {
+                    String when = l.days.isEmpty() ? l.day
+                            : Dates.DAY_SHORT[Dates.dayOfWeek(l.days.get(0))] + " " + Dates.formatRu(l.days.get(0));
+                    adapter.add(when + " · " + l.oneLine());
+                }
+                adapter.notifyDataSetChanged();
+                hint.setText(e.length() == 0 ? "Введите запрос"
+                        : found.size() + " " + plural(found.size(), "совпадение", "совпадения", "совпадений"));
+            }
         });
+        hint.setText("Введите запрос");
 
-        dlg.show();
-
-        Smtu.groups(this, (groups, error) -> {
-            if (groups.isEmpty()) { toast(error != null ? error : "Список групп недоступен"); return; }
-            all.clear();
-            all.addAll(groups);
-            applyFilter(search.getText().toString(), all, filtered, adapter);
+        results.setOnItemClickListener((parent, view, position, id) -> {
+            Lesson l = found.get(position);
+            dialog.dismiss();
+            goTo(l.days.isEmpty() ? shownDay() : l.days.get(0));
+            showLesson(l, l.days.isEmpty() ? shownDay() : l.days.get(0));
         });
+        dialog.show();
     }
 
-    private void applyFilter(String q, List<Group> all, List<Group> filtered, android.widget.ArrayAdapter<String> adapter) {
-        q = q.trim().toLowerCase(RU);
-        filtered.clear();
-        for (Group g : all)
-            if (q.isEmpty() || g.name.toLowerCase(RU).contains(q)) filtered.add(g);
-        List<String> names = new ArrayList<>(filtered.size());
-        for (Group g : filtered) names.add(g.name);
-        adapter.clear();
-        adapter.addAll(names);
-        adapter.notifyDataSetChanged();
-    }
+    private void showMenu() {
+        List<String> items = new ArrayList<>();
+        items.add(teacherId != null ? "Вернуться к группе " + groupName : "Сменить группу");
+        items.add(dayMode ? "Показать неделю" : "Показать день");
+        items.add("Поделиться " + (dayMode ? "днём" : "неделей"));
+        items.add("Обновить с smtu.ru");
+        items.add("Очистить кэш и загрузить заново");
+        items.add("Открыть сайт расписания");
+        items.add("О приложении");
 
-    // ------------------------------------------------------------------ about
-
-    private void showInfo() {
         new AlertDialog.Builder(this)
-                .setTitle("О приложении")
-                .setMessage("Расписание СПбГМТУ " + BuildConfig.VERSION_NAME + "\n\n"
-                        + "Неофициальное приложение-просмотрщик расписания. Все данные "
-                        + "загружаются напрямую с www.smtu.ru — официального сайта "
-                        + "университета — при запуске и по кнопке ⟳, после чего "
-                        + "работают офлайн из кэша на устройстве.\n\n"
-                        + "Верхняя/нижняя неделя определяется автоматически по данным "
-                        + "сайта.\n\n"
-                        + "Тап по названию группы вверху — смена группы.")
+                .setItems(items.toArray(new String[0]), (d, which) -> {
+                    switch (which) {
+                        case 0:
+                            if (teacherId != null) closeTeacher(); else showGroupPicker(false);
+                            break;
+                        case 1: setDayMode(!dayMode); break;
+                        case 2: shareCurrentView(); break;
+                        case 3: refresh(); break;
+                        case 4: clearCache(); break;
+                        case 5: openSite(); break;
+                        default: showAbout();
+                    }
+                })
+                .show();
+    }
+
+    /** Drop every cached schedule and pull this one again. */
+    private void clearCache() {
+        Smtu.clearScheduleCache(this);
+        schedule = Schedule.EMPTY;
+        render();
+        refresh();
+        toast("Кэш очищен");
+    }
+
+    private void showAbout() {
+        String parity = schedule.parity().isDerived()
+                ? "Чётность недель вычислена по датам занятий с сайта."
+                : "Чётность недель — по встроенному календарю (расписание ещё не загружено).";
+        new AlertDialog.Builder(this)
+                .setTitle("Расписание СПбГМТУ " + BuildConfig.VERSION_NAME)
+                .setMessage("Неофициальный просмотрщик расписания СПбГМТУ.\n\n"
+                        + "Данные берутся напрямую с www.smtu.ru — официального сайта "
+                        + "университета — при запуске и по кнопке ⟳, затем работают "
+                        + "офлайн из кэша на устройстве.\n\n"
+                        + parity + "\n\n"
+                        + "Свайп влево/вправо — следующий день или неделя. "
+                        + "Тап по названию группы — смена группы. "
+                        + "Тап по занятию — детали, преподаватель, экспорт в календарь.\n\n"
+                        + "Приложение не связано с университетом; все данные расписания "
+                        + "принадлежат СПбГМТУ.")
                 .setPositiveButton("Закрыть", null)
                 .show();
     }
 
+    // ----------------------------------------------------------- group picker
+
+    private void showGroupPicker(boolean firstRun) {
+        LinearLayout box = Ui.column(this);
+        int pad = dp(16);
+        box.setPadding(pad, pad, pad, 0);
+
+        EditText search = new EditText(this);
+        search.setHint("Группа, например 12826-11");
+        search.setSingleLine(true);
+        box.addView(search, Ui.lp(-1, -2));
+
+        final TextView status = new TextView(this);
+        status.setTextSize(12);
+        status.setTextColor(ui.muted);
+        status.setPadding(0, dp(8), 0, 0);
+        status.setText("Загружаю список групп с smtu.ru…");
+        box.addView(status, Ui.lp(-1, -2));
+
+        final List<Group> all = new ArrayList<>();
+        final List<Group> shown = new ArrayList<>();
+        ListView listView = new ListView(this);
+        final ArrayAdapter<String> adapter =
+                new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
+        listView.setAdapter(adapter);
+        box.addView(listView, Ui.lp(-1, dp(320)));
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("Ваша группа")
+                .setView(box)
+                .setNeutralButton("Повторить", null);
+        if (!firstRun) builder.setNegativeButton("Отмена", null);
+        final AlertDialog dialog = builder.create();
+        dialog.setCanceledOnTouchOutside(!firstRun);
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable e) {
+                filterGroups(e.toString(), all, shown, adapter);
+            }
+        });
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            Group picked = shown.get(position);
+            prefs().edit().putString(PREF_GID, picked.id).putString(PREF_GNAME, picked.name).apply();
+            groupId = picked.id;
+            groupName = picked.name;
+            teacherId = null;
+            teacherName = null;
+            goToday();
+            dialog.dismiss();
+            load();
+        });
+
+        final Runnable loadGroups = () -> {
+            status.setText("Загружаю список групп с smtu.ru…");
+            Smtu.groups(this, (groups, error) -> {
+                if (isFinishing() || !dialog.isShowing()) return;
+                if (groups.isEmpty()) {
+                    status.setText((error != null ? error : "Список групп недоступен")
+                            + ".\nПроверьте сеть и нажмите «Повторить».");
+                    return;
+                }
+                all.clear();
+                all.addAll(groups);
+                filterGroups(search.getText().toString(), all, shown, adapter);
+                status.setText(groups.size() + " " + plural(groups.size(),
+                        "группа", "группы", "групп") + " · начните вводить номер");
+            });
+        };
+
+        dialog.show();
+        // "Повторить" must re-fetch without closing the dialog
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> loadGroups.run());
+        loadGroups.run();
+    }
+
+    private void filterGroups(String query, List<Group> all, List<Group> shown,
+                              ArrayAdapter<String> adapter) {
+        String q = query.trim().toLowerCase(Locale.ROOT);
+        shown.clear();
+        for (Group g : all) if (q.isEmpty() || g.name.toLowerCase(Locale.ROOT).contains(q)) shown.add(g);
+        adapter.clear();
+        for (Group g : shown) adapter.add(g.name);
+        adapter.notifyDataSetChanged();
+    }
+
+    /** Open a group's schedule by its name, as printed in a teacher's timetable. */
+    private void openGroupByName(String name) {
+        Smtu.groups(this, (groups, error) -> {
+            if (isFinishing()) return;
+            for (Group g : groups) {
+                if (!g.name.equalsIgnoreCase(name)) continue;
+                teacherId = null;
+                teacherName = null;
+                groupId = g.id;
+                groupName = g.name;
+                prefs().edit().putString(PREF_GID, g.id).putString(PREF_GNAME, g.name).apply();
+                load();
+                return;
+            }
+            toast("Группа " + name + " не найдена в списке");
+        });
+    }
+
+    // ---------------------------------------------------------------- sharing
+
+    private void addToCalendar(Lesson lesson, long day) {
+        long start = Dates.startOfDayMillis(day, Math.max(lesson.startMinutes(), 0));
+        long end = Dates.startOfDayMillis(day, Math.max(lesson.endMinutes(), lesson.startMinutes() + 90));
+        Intent intent = new Intent(Intent.ACTION_INSERT)
+                .setData(CalendarContract.Events.CONTENT_URI)
+                .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
+                .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end)
+                .putExtra(CalendarContract.Events.TITLE, lesson.subject)
+                .putExtra(CalendarContract.Events.EVENT_LOCATION, lesson.room)
+                .putExtra(CalendarContract.Events.DESCRIPTION, lessonText(lesson, day));
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            toast("На устройстве нет приложения-календаря");
+        }
+    }
+
+    private void shareCurrentView() {
+        StringBuilder text = new StringBuilder();
+        String who = teacherId != null ? teacherName : groupName;
+        if (dayMode) {
+            long day = anchorMonday + dayOffset;
+            text.append(who).append(" · ").append(Dates.weekdayDayMonth(day)).append('\n');
+            appendDay(text, day);
+        } else {
+            text.append(who).append(" · ").append(Dates.range(anchorMonday, anchorMonday + 6))
+                .append(schedule.isUpper(anchorMonday) ? " · верхняя неделя" : " · нижняя неделя")
+                .append('\n');
+            for (int i = 0; i < 7; i++) {
+                long day = anchorMonday + i;
+                if (schedule.on(day).isEmpty()) continue;
+                text.append('\n').append(Dates.DAY_FULL[i]).append(", ")
+                    .append(Dates.dayMonth(day)).append('\n');
+                appendDay(text, day);
+            }
+        }
+        share(who + " · расписание", text.toString().trim());
+    }
+
+    private void appendDay(StringBuilder text, long day) {
+        List<Lesson> lessons = schedule.on(day);
+        if (lessons.isEmpty()) {
+            text.append("занятий нет\n");
+            return;
+        }
+        for (Lesson l : lessons) text.append(l.oneLine()).append('\n');
+    }
+
+    private String lessonText(Lesson lesson, long day) {
+        StringBuilder t = new StringBuilder();
+        t.append(lesson.subject).append('\n')
+         .append(Dates.weekdayDayMonth(day)).append(", ")
+         .append(lesson.time.replace(" - ", " – "));
+        if (!lesson.type.isEmpty()) t.append('\n').append(lesson.type);
+        if (!lesson.room.isEmpty()) t.append(" · ").append(lesson.room);
+        if (!lesson.teacher.isEmpty()) t.append('\n').append(lesson.teacher);
+        if (!lesson.group.isEmpty()) t.append('\n').append("Группа ").append(lesson.group);
+        if (!lesson.note.isEmpty()) t.append('\n').append(lesson.note);
+        return t.toString();
+    }
+
+    private void share(String subject, String text) {
+        Intent intent = new Intent(Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_SUBJECT, subject)
+                .putExtra(Intent.EXTRA_TEXT, text);
+        try {
+            startActivity(Intent.createChooser(intent, "Поделиться"));
+        } catch (ActivityNotFoundException e) {
+            toast("Нечем поделиться");
+        }
+    }
+
+    private void openSite() {
+        String url = Smtu.HOST + (teacherId != null
+                ? "/ru/viewschedule_new/teacher/" + teacherId + "/"
+                : "/ru/viewschedule_new/" + groupId + "/");
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+        } catch (ActivityNotFoundException e) {
+            toast("Нет браузера");
+        }
+    }
+
     // ----------------------------------------------------------------- utils
 
-    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
-
-    private boolean isToday(Calendar c) {
-        Calendar t = today();
-        return t.get(Calendar.YEAR) == c.get(Calendar.YEAR)
-            && t.get(Calendar.DAY_OF_YEAR) == c.get(Calendar.DAY_OF_YEAR);
+    private SharedPreferences prefs() {
+        return getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    private static Calendar today() {
-        Calendar c = Calendar.getInstance();
-        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0);
-        return c;
+    private int dp(float value) {
+        return Ui.dp(this, value);
     }
 
-    /** Monday 00:00 of the week containing c. */
-    private static Calendar monday(Calendar c) {
-        Calendar r = (Calendar) c.clone();
-        int shift = (r.get(Calendar.DAY_OF_WEEK) + 5) % 7; // Mon=0 .. Sun=6
-        r.add(Calendar.DAY_OF_YEAR, -shift);
-        return r;
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
-    private static Calendar plus(Calendar c, int days) {
-        Calendar r = (Calendar) c.clone();
-        r.add(Calendar.DAY_OF_YEAR, days);
-        return r;
-    }
-
-    /** "Понедельник" for a Calendar, to match Slot.day. */
-    private static String dayName(Calendar c) {
-        return new SimpleDateFormat("EEEE", RU).format(c.getTime());
-    }
-
-    private static String shortDay(String day) {
-        return day.length() <= 3 ? day : day.substring(0, 3);
+    /** Russian plural: 1 занятие, 2 занятия, 5 занятий. */
+    static String plural(int n, String one, String few, String many) {
+        int mod100 = n % 100, mod10 = n % 10;
+        if (mod100 >= 11 && mod100 <= 14) return many;
+        if (mod10 == 1) return one;
+        if (mod10 >= 2 && mod10 <= 4) return few;
+        return many;
     }
 }
