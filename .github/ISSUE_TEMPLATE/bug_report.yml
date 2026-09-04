@@ -1,0 +1,48 @@
+name: Что-то не работает
+description: Расписание показывается неверно, приложение падает или не загружает данные
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Что происходит
+      description: Опишите, что вы сделали и что увидели вместо ожидаемого.
+      placeholder: |
+        Открыл расписание группы 12826-11, среда 16 сентября.
+        Пара «Информатика» показана в 10:10, а на сайте она в 11:50.
+    validations:
+      required: true
+
+  - type: input
+    id: group
+    attributes:
+      label: Группа или преподаватель
+      description: Номер группы (или ФИО преподавателя), на которых видно проблему.
+      placeholder: 12826-11
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      description: Меню ⋮ → «О приложении», первая строка.
+      placeholder: 2.0
+    validations:
+      required: false
+
+  - type: input
+    id: android
+    attributes:
+      label: Android и модель телефона
+      placeholder: Android 13, Redmi Note 10
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Скриншот или что-то ещё
+      description: Скриншот приложения и, если возможно, той же страницы на сайте — очень помогают.
+    validations:
+      required: false

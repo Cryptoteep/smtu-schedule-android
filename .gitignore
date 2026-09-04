@@ -22,3 +22,6 @@ keystore.properties
 # Local toolchain and scratch pages fetched from smtu.ru (see app/src/test/resources)
 .tools/
 .fixtures/
+
+# Release signing key (never commit)
+.keys/

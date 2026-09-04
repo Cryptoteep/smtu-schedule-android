@@ -1,0 +1,21 @@
+name: Идея или пожелание
+description: Чего не хватает в приложении
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Что предлагаете
+      description: Что должно появиться и в какой ситуации это пригодится.
+      placeholder: |
+        Напоминание за 15 минут до пары — чтобы не проверять расписание вручную.
+    validations:
+      required: true
+
+  - type: textarea
+    id: now
+    attributes:
+      label: Как обходитесь сейчас
+      description: Необязательно, но помогает понять, насколько это неудобно.
+    validations:
+      required: false

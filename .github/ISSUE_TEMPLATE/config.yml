@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Расписание неверное на самом сайте
+    url: https://www.smtu.ru/ru/listschedule/
+    about: Приложение показывает то, что опубликовал университет. Если ошибка есть и на сайте — сообщать нужно в деканат, а не сюда.

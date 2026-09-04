@@ -40,6 +40,19 @@ android {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
             }
+            // v1 for Android 5–6, v2 for 7+, v3 (key rotation) for 9+
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
+    packaging {
+        resources {
+            // build metadata AGP adds outside the signature; nothing reads it on a phone
+            excludes += ['META-INF/com/android/build/gradle/app-metadata.properties',
+                         'META-INF/version-control-info.textproto',
+                         'DebugProbesKt.bin', 'kotlin-tooling-metadata.json']
         }
     }
 

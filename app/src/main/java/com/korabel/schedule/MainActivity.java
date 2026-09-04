@@ -47,7 +47,7 @@ import java.util.Locale;
  * to the phone's calendar, and sharing it as text.
  *
  * Views are built in code — no XML layouts, no AndroidX, no third-party
- * libraries; the release APK stays around 40 KB.
+ * libraries; the signed release APK is about 53 KB.
  */
 public final class MainActivity extends Activity {
 
@@ -75,12 +75,14 @@ public final class MainActivity extends Activity {
     private LinearLayout dayStrip;
     private ListView list;
     private ProgressBar progress;
+    private GestureDetector swipe;
 
     // ------------------------------------------------------------------ setup
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         ui = new Ui(this);
+        swipe = swipeDetector();
         setContentView(buildUi());
 
         SharedPreferences p = prefs();
@@ -288,7 +290,6 @@ public final class MainActivity extends Activity {
         list.setPadding(dp(8), dp(8), dp(8), dp(16));
         list.setClipToPadding(false);
         list.setEmptyView(tvEmpty);
-        attachSwipe(list);
         body.addView(list, new FrameLayout.LayoutParams(-1, -1));
 
         tvStatus = new TextView(this);
@@ -300,24 +301,29 @@ public final class MainActivity extends Activity {
         return root;
     }
 
-    /** Horizontal flings move through the schedule; vertical scrolling is untouched. */
-    private void attachSwipe(View target) {
-        GestureDetector detector = new GestureDetector(this,
-                new GestureDetector.SimpleOnGestureListener() {
-                    @Override public boolean onFling(MotionEvent e1, MotionEvent e2,
-                                                     float vx, float vy) {
-                        if (e1 == null || e2 == null) return false;
-                        float dx = e2.getX() - e1.getX(), dy = e2.getY() - e1.getY();
-                        if (Math.abs(dx) < dp(64) || Math.abs(dx) < Math.abs(dy) * 1.5f) return false;
-                        shift(dx < 0 ? 1 : -1);
-                        return true;
-                    }
-                });
-        target.setOnTouchListener((v, event) -> {
-            if (!detector.onTouchEvent(event)) return false;
-            v.performClick();               // keep talkback and click handling intact
-            return true;
+    /**
+     * Horizontal flings move through the schedule.
+     *
+     * The detector watches the whole window rather than the list: an empty day
+     * shows no list rows at all, and that is exactly when the user wants to
+     * swipe on to the next one. Events are only observed, never consumed, so
+     * scrolling and taps behave as usual.
+     */
+    private GestureDetector swipeDetector() {
+        return new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                if (e1 == null || e2 == null) return false;
+                float dx = e2.getX() - e1.getX(), dy = e2.getY() - e1.getY();
+                if (Math.abs(dx) < dp(64) || Math.abs(dx) < Math.abs(dy) * 1.5f) return false;
+                shift(dx < 0 ? 1 : -1);
+                return true;
+            }
         });
+    }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent event) {
+        if (swipe != null) swipe.onTouchEvent(event);
+        return super.dispatchTouchEvent(event);
     }
 
     // -------------------------------------------------------------- rendering
