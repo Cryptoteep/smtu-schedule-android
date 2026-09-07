@@ -72,7 +72,7 @@ public final class MainActivity extends Activity {
 
     private Ui ui;
     private TextView tvTitle, tvRange, tvWeek, tvMode, tvToday, tvEmpty, tvStatus;
-    private LinearLayout dayStrip;
+    private LinearLayout dayStrip, headerBox;
     private ListView list;
     private ProgressBar progress;
     private GestureDetector swipe;
@@ -187,8 +187,9 @@ public final class MainActivity extends Activity {
     private View buildUi() {
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(ui.bg);
+        insetPadding(root);
 
-        LinearLayout header = Ui.column(this);
+        LinearLayout header = headerBox = Ui.column(this);
         header.setBackgroundColor(ui.headerBg);
         header.setPadding(dp(8), dp(10), dp(8), dp(6));
         root.addView(header, Ui.lp(-1, -2));
@@ -296,9 +297,43 @@ public final class MainActivity extends Activity {
         tvStatus.setTextSize(11);
         tvStatus.setTextColor(ui.muted);
         tvStatus.setPadding(dp(12), dp(4), dp(12), dp(6));
+        tvStatus.setBackgroundColor(ui.headerBg);
         root.addView(tvStatus, Ui.lp(-1, -2));
 
         return root;
+    }
+
+    /**
+     * Keep the content out from under the status and navigation bars.
+     *
+     * From targetSdk 35 on, Android 15+ draws every app edge-to-edge whether it
+     * asks for it or not, so the header would slide under the clock. Done with
+     * the platform's own listener — no AndroidX — and with the deprecated
+     * accessors on Android 10 and older, where the modern ones do not exist.
+     */
+    @SuppressWarnings("deprecation")
+    private void insetPadding(final View root) {
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top, bottom, left, right;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(
+                        android.view.WindowInsets.Type.systemBars()
+                                | android.view.WindowInsets.Type.displayCutout());
+                top = bars.top; bottom = bars.bottom; left = bars.left; right = bars.right;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+                left = insets.getSystemWindowInsetLeft();
+                right = insets.getSystemWindowInsetRight();
+            }
+            // the header paints the strip behind the status bar, the status line the one
+            // behind the navigation bar — so both areas keep the right colour
+            if (headerBox != null)
+                headerBox.setPadding(dp(8) + left, dp(10) + top, dp(8) + right, dp(6));
+            if (tvStatus != null)
+                tvStatus.setPadding(dp(12) + left, dp(4), dp(12) + right, dp(6) + bottom);
+            return insets;
+        });
     }
 
     /**

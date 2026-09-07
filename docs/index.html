@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Расписание СПбГМТУ — приложение для Android</title>
+<meta name="description" content="Неофициальное приложение расписания СПбГМТУ: неделя и день, расписание преподавателей, работает офлайн. 54 КБ, открытый код, без рекламы и сбора данных.">
+<meta property="og:title" content="Расписание СПбГМТУ">
+<meta property="og:description" content="Расписание своей группы и преподавателей в одном приложении. 54 КБ, работает офлайн, открытый код.">
+<meta property="og:type" content="website">
+<link rel="icon" href="icon-512.png">
+<style>
+  :root {
+    --navy: #1A3E8C;
+    --navy-soft: #2E4FA8;
+    --bg: #F4F6FA;
+    --card: #FFFFFF;
+    --text: #14161C;
+    --muted: #5A6273;
+    --line: #E1E5EE;
+    --ok: #1E7F4F;
+    --warn-bg: #FFF6E5;
+    --warn-line: #F0D9A8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --navy: #93AEFF;
+      --navy-soft: #7E9BF5;
+      --bg: #0E1116;
+      --card: #171B22;
+      --text: #E7EAF0;
+      --muted: #98A1B2;
+      --line: #262C36;
+      --ok: #4CC08A;
+      --warn-bg: #241D0F;
+      --warn-line: #4A3B1C;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header { text-align: center; padding: 56px 0 8px; }
+  header img.icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 6px 24px rgba(26,62,140,.25); }
+  h1 { font-size: 34px; margin: 20px 0 6px; letter-spacing: -.5px; }
+  .lead { color: var(--muted); font-size: 18px; margin: 0 auto; max-width: 620px; }
+
+  .cta { text-align: center; margin: 32px 0 8px; }
+  .btn {
+    display: inline-block; background: var(--navy); color: #fff; text-decoration: none;
+    font-size: 18px; font-weight: 600; padding: 16px 34px; border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(26,62,140,.3);
+  }
+  @media (prefers-color-scheme: dark) { .btn { color: #10131A; } }
+  .btn:active { transform: translateY(1px); }
+  .cta small { display: block; color: var(--muted); margin-top: 10px; font-size: 14px; }
+
+  .shots { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 36px 0 8px; }
+  .shots img { width: 30%; min-width: 190px; max-width: 240px; border-radius: 14px; border: 1px solid var(--line); }
+
+  h2 { font-size: 24px; margin: 46px 0 14px; letter-spacing: -.3px; }
+  h3 { font-size: 18px; margin: 26px 0 8px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .features div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .features b { display: block; margin-bottom: 4px; }
+  .features span { color: var(--muted); font-size: 15px; }
+
+  ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  ol.steps li {
+    position: relative; padding: 0 0 20px 46px; margin: 0;
+    border-left: 2px solid var(--line); margin-left: 15px;
+  }
+  ol.steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.steps li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: -16px; top: -2px; width: 30px; height: 30px;
+    background: var(--navy); color: #fff; border-radius: 50%;
+    display: grid; place-items: center; font-size: 15px; font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) { ol.steps li::before { color: #10131A; } }
+  ol.steps b { display: block; }
+  ol.steps span { color: var(--muted); font-size: 15px; }
+
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 14px; padding: 18px 20px; }
+  .warn p:first-child { margin-top: 0; }
+  .warn p:last-child { margin-bottom: 0; }
+  .quote { color: var(--muted); font-style: italic; }
+
+  table.facts { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.facts td { padding: 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.facts td:first-child { color: var(--muted); width: 40%; padding-right: 16px; }
+  table.facts tr:last-child td { border-bottom: none; }
+  code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
+
+  a { color: var(--navy); }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img class="icon" src="icon-512.png" alt="Иконка приложения">
+    <h1>Расписание СПбГМТУ</h1>
+    <p class="lead">
+      Расписание своей группы и любого преподавателя — в одном приложении.
+      Открывается мгновенно, работает без интернета, весит 54 КБ.
+    </p>
+  </header>
+
+  <div class="cta">
+    <a class="btn" href="https://github.com/Cryptoteep/smtu-schedule-android/releases/latest/download/smtu-schedule-2.1.apk">Скачать для Android</a>
+    <small>версия 2.1 · 54 КБ · Android 5.0 и новее · бесплатно, без рекламы</small>
+  </div>
+
+  <div class="shots">
+    <img src="screenshot-week.png" alt="Расписание на неделю">
+    <img src="screenshot-day.png" alt="Расписание на день">
+    <img src="screenshot-lesson.png" alt="Карточка занятия">
+  </div>
+
+  <h2>Что умеет</h2>
+  <div class="features">
+    <div><b>Неделя и день</b><span>Свайп листает дни и недели, кнопка «Сегодня» возвращает к текущему.</span></div>
+    <div><b>Видно, что идёт сейчас</b><span>Текущая пара подсвечена, прошедшие сегодня — приглушены.</span></div>
+    <div><b>Расписание преподавателя</b><span>Со всеми его группами — и переход к расписанию любой из них.</span></div>
+    <div><b>Работает офлайн</b><span>Весь семестр скачивается разом и остаётся на телефоне.</span></div>
+    <div><b>Поиск</b><span>По предмету, преподавателю, аудитории, типу занятия и группе.</span></div>
+    <div><b>Календарь и «поделиться»</b><span>Пара уходит в календарь телефона, день — текстом в чат.</span></div>
+  </div>
+
+  <h2>Как установить</h2>
+  <ol class="steps">
+    <li>
+      <b>Скачайте файл на телефон</b>
+      <span>Кнопка выше. Браузер спросит, сохранять ли файл — сохраните.</span>
+    </li>
+    <li>
+      <b>Откройте скачанный файл</b>
+      <span>Из шторки уведомлений или из папки «Загрузки».</span>
+    </li>
+    <li>
+      <b>Разрешите установку из этого источника</b>
+      <span>Android один раз спросит разрешение для браузера — это стандартный шаг для любого приложения не из Play Маркета.</span>
+    </li>
+    <li>
+      <b>Выберите свою группу</b>
+      <span>Список всех 449 групп с поиском. Дальше группа запомнится.</span>
+    </li>
+  </ol>
+
+  <h2>Почему телефон показывает предупреждения</h2>
+  <div class="warn">
+    <p>
+      Android показывает эти окна <b>любому</b> приложению, установленному не из Play Маркета,
+      независимо от того, что внутри. Это предупреждение о способе установки, а не о находке вируса.
+    </p>
+    <p class="quote">
+      «Этот тип файла может нанести вред устройству» — стандартный текст браузера для всех APK.<br>
+      «Play Защита не проверяла это приложение» — значит только то, что его нет в каталоге Google.
+    </p>
+    <p>
+      Проверить, что вам подсунули именно то приложение, можно без доверия к автору:
+      исходный код открыт целиком, а файл собирается из него автоматически на серверах GitHub —
+      сборку и её лог видно всем.
+    </p>
+  </div>
+
+  <h2>Чем можно проверить</h2>
+  <div class="card">
+    <table class="facts">
+      <tr>
+        <td>Исходный код</td>
+        <td><a href="https://github.com/Cryptoteep/smtu-schedule-android">github.com/Cryptoteep/smtu-schedule-android</a></td>
+      </tr>
+      <tr>
+        <td>Автоматическая сборка</td>
+        <td><a href="https://github.com/Cryptoteep/smtu-schedule-android/actions">лог каждой сборки</a> — тесты, статический анализ, готовый файл</td>
+      </tr>
+      <tr>
+        <td>Разрешения приложения</td>
+        <td>одно: доступ в интернет. Ни контактов, ни файлов, ни геолокации, ни SMS</td>
+      </tr>
+      <tr>
+        <td>Куда ходит</td>
+        <td>только на <code>www.smtu.ru</code> — за расписанием. Ни аналитики, ни рекламы, ни своих серверов</td>
+      </tr>
+      <tr>
+        <td>Контрольная сумма APK</td>
+        <td><code id="sha">a59d762938987ce4f284238196dce2138756b29cb3571db37b737e65e0d813a1</code></td>
+      </tr>
+      <tr>
+        <td>Подпись</td>
+        <td>сертификат SHA-256 <code>ddc58c2599c8f158c27c55e18ef14cee72a28d3c15f808987a370202568b7add</code></td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>Вопросы</h2>
+  <div class="card">
+    <h3>Расписание не загружается</h3>
+    <p>Сервер университета не пускает часть зарубежных адресов: под VPN с иностранным выходом
+    первая загрузка может не пройти. Выключите VPN и нажмите ⟳ — дальше приложение работает
+    даже без сети.</p>
+
+    <h3>На сайте расписание поменялось, а в приложении старое</h3>
+    <p>Кнопка ⟳ в шапке. Если университет переписал страницу целиком — меню ⋮ →
+    «Очистить кэш и загрузить заново».</p>
+
+    <h3>А для iPhone?</h3>
+    <p>Готовится веб-версия, которая открывается по ссылке и добавляется на экран «Домой»
+    как обычное приложение — без App Store и без установки.</p>
+
+    <h3>Приложение официальное?</h3>
+    <p>Нет. Это студенческий проект: он просто показывает то, что университет публикует
+    на своём сайте. Все данные расписания принадлежат СПбГМТУ.</p>
+  </div>
+
+  <footer>
+    Открытый код, лицензия MIT ·
+    <a href="https://github.com/Cryptoteep/smtu-schedule-android">исходники</a> ·
+    <a href="privacy.html">политика конфиденциальности</a><br>
+    Приложение не связано с СПбГМТУ.
+  </footer>
+
+</div>
+</body>
+</html>

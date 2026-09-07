@@ -17,14 +17,14 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace 'com.korabel.schedule'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.korabel.schedule"
         minSdk 21
-        targetSdk 34
-        versionCode 2
-        versionName "2.0"
+        targetSdk 36
+        versionCode 3
+        versionName "2.1"
         resourceConfigurations += ["ru"]
     }
 

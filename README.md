@@ -3,19 +3,23 @@
 <p align="center">
   Неофициальное приложение расписания <a href="https://www.smtu.ru/">Санкт-Петербургского
   государственного морского технического университета</a>.<br>
-  Открывается мгновенно, работает без интернета, весит 53 КБ и ничего о вас не собирает.
+  Открывается мгновенно, работает без интернета, весит 54 КБ и ничего о вас не собирает.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Cryptoteep/smtu-schedule-android/releases/latest">
-    <img alt="Скачать APK" src="https://img.shields.io/github/v/release/Cryptoteep/smtu-schedule-android?label=%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C%20APK&style=for-the-badge&color=1A3E8C"></a>
+  <a href="https://cryptoteep.github.io/smtu-schedule-android/">
+    <img alt="Скачать приложение" src="https://img.shields.io/github/v/release/Cryptoteep/smtu-schedule-android?label=%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5&style=for-the-badge&color=1A3E8C"></a>
+</p>
+
+<p align="center">
+  Страница установки для людей: <a href="https://cryptoteep.github.io/smtu-schedule-android/">cryptoteep.github.io/smtu-schedule-android</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml">
     <img alt="Сборка" src="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml/badge.svg"></a>
   <img alt="Android 5.0+" src="https://img.shields.io/badge/Android-5.0%2B-3DDC84">
-  <img alt="Размер APK" src="https://img.shields.io/badge/APK-53%20%D0%9A%D0%91-1A3E8C">
+  <img alt="Размер APK" src="https://img.shields.io/badge/APK-54%20%D0%9A%D0%91-1A3E8C">
   <img alt="Зависимостей нет" src="https://img.shields.io/badge/%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen">
   <img alt="Тестов 50" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-50-brightgreen">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
@@ -27,8 +31,9 @@
 
 ## Скачать и поставить
 
-1. Откройте [страницу релиза](https://github.com/Cryptoteep/smtu-schedule-android/releases/latest)
-   и скачайте `smtu-schedule-*.apk` прямо на телефон.
+1. Откройте [страницу установки](https://cryptoteep.github.io/smtu-schedule-android/)
+   и скачайте APK прямо на телефон (там же — почему Android показывает предупреждения
+   и чем проверить файл).
 2. Откройте скачанный файл. Android спросит разрешение ставить приложения из
    этого источника — разрешите (обычный вопрос для APK не из Play Store).
 3. Запустите, выберите свою группу из списка — дальше она запомнится.
@@ -174,7 +179,7 @@ app/src/test/resources/fixtures/   реальные страницы smtu.ru, н
 
 ## Сборка
 
-Нужны JDK 17 и Android SDK (`platforms;android-34`, `build-tools;34.0.0`);
+Нужны JDK 17 и Android SDK (`platforms;android-36`, `build-tools;36.1.0`);
 Gradle-обёртка лежит в репозитории.
 
 ```bash
@@ -231,7 +236,7 @@ MIT — см. [LICENSE](LICENSE). Приложение не связано с С
 
 Unofficial schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint Petersburg
 State Marine Technical University). Pure Java, zero third-party libraries (no
-AndroidX), all views built in code; the signed release APK is 53 KB.
+AndroidX), all views built in code; the signed release APK is 54 KB.
 
 **Features.** Pick your group once from all 449; week and day views with swipe
 navigation; the lesson happening now is highlighted; a teacher's full schedule
@@ -258,5 +263,5 @@ that knows about `Context`.
 **Build.** JDK 17 + Android SDK 34, wrapper included: `./gradlew assembleRelease`.
 Drop a `keystore.properties` in the project root to sign with your own key.
 
-Min SDK 21, target SDK 34, internet permission only. MIT licensed; not
+Min SDK 21, target SDK 36, internet permission only. MIT licensed; not
 affiliated with SPbSMTU.
