@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Расписание СПбГМТУ</title>
+<meta name="description" content="Расписание СПбГМТУ в браузере: неделя и день, преподаватели, работает офлайн. Добавляется на экран «Домой» как приложение — без установки и App Store.">
+<meta name="theme-color" content="#1A3E8C" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#20262F" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Расписание">
+<style>
+  :root {
+    --bg:#EEF1F4; --card:#fff; --text:#1B1B1F; --muted:#6B7280;
+    --header:#E3E7EE; --accent:#1A3E8C; --line:#00000014; --today:#DDE3FA;
+    --upper:#2E4FA8; --lower:#00695C;
+    --lecture:#3D6BE5; --practice:#1E9E6A; --lab:#E08A1E; --exam:#D2453C; --other:#8A8F98;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#101318; --card:#1A1F27; --text:#E6E9EF; --muted:#9AA3B2;
+      --header:#20262F; --accent:#9DB4FF; --line:#ffffff1f; --today:#243055;
+      --upper:#3D5FBF; --lower:#0E7C6B;
+    }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display:flex; flex-direction:column; overscroll-behavior-y:contain;
+  }
+
+  header {
+    background:var(--header); padding:calc(env(safe-area-inset-top) + 10px) 8px 6px;
+    flex:none;
+  }
+  .row { display:flex; align-items:center; gap:8px; }
+  .nav {
+    width:44px; height:44px; flex:none; border:0; border-radius:10px;
+    background:#00000010; color:var(--text); font-size:24px; line-height:1; cursor:pointer;
+  }
+  @media (prefers-color-scheme: dark) { .nav { background:#ffffff14; } }
+  .title { flex:1; min-width:0; padding:0 6px; cursor:pointer; }
+  .title h1 { margin:0; font-size:19px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .title p { margin:1px 0 0; font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .row2 { margin-top:8px; gap:6px; }
+  .pill {
+    border:0; border-radius:14px; padding:6px 12px; font-size:12px; font-weight:600;
+    background:#00000010; color:var(--text); cursor:pointer; white-space:nowrap;
+  }
+  @media (prefers-color-scheme: dark) { .pill { background:#ffffff14; } }
+  .pill.week { color:#fff; }
+  .pill.upper { background:var(--upper); }
+  .pill.lower { background:var(--lower); }
+  .spacer { flex:1; }
+  .icon-btn {
+    width:38px; height:38px; flex:none; border:0; border-radius:10px;
+    background:#00000010; color:var(--text); font-size:17px; cursor:pointer;
+  }
+  @media (prefers-color-scheme: dark) { .icon-btn { background:#ffffff14; } }
+
+  .days { display:flex; margin-top:8px; gap:3px; }
+  .days button {
+    flex:1; border:0; border-radius:8px; background:transparent; color:var(--muted);
+    padding:5px 0 6px; font-size:13px; cursor:pointer; line-height:1.25;
+  }
+  .days button b { display:block; font-weight:600; }
+  .days button span { font-size:12px; color:var(--accent); }
+  .days button.sel { background:var(--today); color:var(--accent); }
+
+  main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 8px 12px; }
+  .dayhead { font-size:13px; font-weight:700; color:var(--muted); padding:12px 6px 6px; }
+  .dayhead.today { color:var(--accent); }
+  .free { color:var(--muted); background:#00000008; border-radius:12px; padding:12px 14px; font-size:14px; }
+  @media (prefers-color-scheme: dark) { .free { background:#ffffff0d; } }
+
+  .lesson {
+    display:flex; gap:10px; background:var(--card); border-radius:14px;
+    padding:10px 12px; margin-bottom:8px; cursor:pointer; align-items:flex-start;
+  }
+  .lesson .stripe { width:4px; align-self:stretch; border-radius:3px; flex:none; }
+  .lesson .time { width:52px; flex:none; font-size:13px; font-weight:700; color:var(--accent); }
+  .lesson .body { flex:1; min-width:0; }
+  .lesson .subject { font-size:15px; }
+  .lesson .meta { font-size:12.5px; color:var(--muted); margin-top:1px; }
+  .lesson .room { width:88px; flex:none; text-align:right; font-size:12.5px; color:var(--muted); }
+  .lesson.now { background:var(--today); }
+  .lesson.now .subject { font-weight:700; }
+  .lesson.past { opacity:.55; }
+
+  .status {
+    flex:none; background:var(--header); color:var(--muted); font-size:11.5px;
+    padding:5px 12px calc(env(safe-area-inset-bottom) + 6px);
+  }
+
+  dialog {
+    border:0; border-radius:16px; padding:0; width:min(440px, calc(100vw - 32px));
+    background:var(--card); color:var(--text); max-height:82vh;
+  }
+  dialog::backdrop { background:#0008; }
+  .dlg { padding:20px; }
+  .dlg h2 { margin:0 0 12px; font-size:19px; }
+  .dlg p { margin:0 0 10px; font-size:14.5px; }
+  .dlg .dim { color:var(--muted); font-size:13px; }
+  .dlg-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; padding:0 16px 16px; }
+  .dlg-actions button {
+    border:0; background:transparent; color:var(--accent); font-size:14px; font-weight:600;
+    padding:8px 12px; border-radius:8px; cursor:pointer;
+  }
+  #search { width:100%; font-size:16px; padding:10px 12px; border-radius:10px;
+            border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  .list { max-height:52vh; overflow-y:auto; margin-top:10px; }
+  .list button {
+    display:block; width:100%; text-align:left; border:0; background:transparent; color:var(--text);
+    padding:11px 8px; font-size:15px; border-bottom:1px solid var(--line); cursor:pointer;
+  }
+  .hint { text-align:center; color:var(--muted); font-size:14px; padding:40px 20px; white-space:pre-line; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="row">
+    <button class="nav" id="prev" aria-label="Назад">‹</button>
+    <div class="title" id="titleBox">
+      <h1 id="title">Группа</h1>
+      <p id="range">загрузка…</p>
+    </div>
+    <button class="nav" id="next" aria-label="Вперёд">›</button>
+  </div>
+  <div class="row row2">
+    <button class="pill" id="mode">Неделя</button>
+    <button class="pill week upper" id="parity" hidden>ВЕРХНЯЯ</button>
+    <button class="pill" id="today" hidden>Сегодня</button>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="find" aria-label="Поиск">⌕</button>
+    <button class="icon-btn" id="reload" aria-label="Обновить">⟳</button>
+  </div>
+  <div class="days" id="days" hidden></div>
+</header>
+
+<main id="body"><div class="hint" id="hint">Загружаю расписание…</div></main>
+<div class="status" id="status"></div>
+
+<dialog id="picker">
+  <div class="dlg">
+    <h2>Ваша группа</h2>
+    <input id="search" type="search" inputmode="numeric" placeholder="Группа, например 12826-11" autocomplete="off">
+    <p class="dim" id="pickerStatus" style="margin:8px 0 0">Загружаю список групп…</p>
+    <div class="list" id="groups"></div>
+  </div>
+  <div class="dlg-actions"><button id="pickerClose">Закрыть</button></div>
+</dialog>
+
+<dialog id="lesson">
+  <div class="dlg" id="lessonBody"></div>
+  <div class="dlg-actions">
+    <button id="lessonTeacher" hidden>Преподаватель</button>
+    <button id="lessonClose">Закрыть</button>
+  </div>
+</dialog>
+
+<dialog id="finder">
+  <div class="dlg">
+    <h2>Поиск по расписанию</h2>
+    <input id="query" type="search" placeholder="Предмет, преподаватель, аудитория" autocomplete="off">
+    <div class="list" id="results"></div>
+  </div>
+  <div class="dlg-actions"><button id="finderClose">Закрыть</button></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

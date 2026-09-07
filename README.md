@@ -12,7 +12,8 @@
 </p>
 
 <p align="center">
-  Страница установки для людей: <a href="https://cryptoteep.github.io/smtu-schedule-android/">cryptoteep.github.io/smtu-schedule-android</a>
+  <a href="https://cryptoteep.github.io/smtu-schedule-android/">Страница установки</a> ·
+  <a href="https://cryptoteep.github.io/smtu-schedule-android/app/">веб-версия</a> (iPhone и без установки)
 </p>
 
 <p align="center">
@@ -205,6 +206,11 @@ keyPassword=...
 Каждый push собирается в GitHub Actions: тесты, lint и APK в артефактах.
 
 ## Вопросы
+
+**А для iPhone?** Есть [веб-версия](https://cryptoteep.github.io/smtu-schedule-android/app/):
+то же расписание в браузере, добавляется на экран «Домой» и работает офлайн. Нативное
+приложение под iOS выпустить бесплатно нельзя — Apple берёт 99 $ в год за возможность
+раздавать сборку, а бесплатная подпись живёт 7 дней и требует компьютера.
 
 **Почему не в Google Play?** Приложение неофициальное и заточено под один
 университет; проще раздавать APK. Установка из файла — единственный шаг, где

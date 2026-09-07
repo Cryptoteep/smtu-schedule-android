@@ -60,6 +60,8 @@
   @media (prefers-color-scheme: dark) { .btn { color: #10131A; } }
   .btn:active { transform: translateY(1px); }
   .cta small { display: block; color: var(--muted); margin-top: 10px; font-size: 14px; }
+  .cta .alt { margin: 14px 0 0; font-size: 15px; color: var(--muted); }
+  .cta .alt a { font-weight: 600; }
 
   .shots { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 36px 0 8px; }
   .shots img { width: 30%; min-width: 190px; max-width: 240px; border-radius: 14px; border: 1px solid var(--line); }
@@ -119,6 +121,7 @@
   <div class="cta">
     <a class="btn" href="https://github.com/Cryptoteep/smtu-schedule-android/releases/latest/download/smtu-schedule-2.1.apk">Скачать для Android</a>
     <small>версия 2.1 · 54 КБ · Android 5.0 и новее · бесплатно, без рекламы</small>
+    <p class="alt"><a href="app/">Открыть веб-версию</a> — работает на iPhone и вообще без установки</p>
   </div>
 
   <div class="shots">
@@ -174,6 +177,19 @@
     </p>
   </div>
 
+  <h2>iPhone и «не хочу ничего ставить»</h2>
+  <div class="card">
+    <p>Есть <a href="app/">веб-версия</a>: то же расписание, те же неделя и день,
+    расписание преподавателей и работа без интернета — но открывается просто по ссылке.
+    Ничего не устанавливается, никаких предупреждений система не показывает.</p>
+    <p><b>iPhone:</b> откройте ссылку в Safari → кнопка «Поделиться» → «На экран Домой».
+    Появится иконка, приложение запустится на весь экран.<br>
+    <b>Android:</b> откройте в Chrome → меню ⋮ → «Добавить на главный экран».</p>
+    <p class="dim" style="color:var(--muted);font-size:14px;margin-bottom:0">
+    Отдельное Android-приложение всё же удобнее: оно быстрее открывается, не зависит
+    от браузера и умеет добавлять пары в календарь телефона.</p>
+  </div>
+
   <h2>Чем можно проверить</h2>
   <div class="card">
     <table class="facts">
@@ -216,8 +232,9 @@
     «Очистить кэш и загрузить заново».</p>
 
     <h3>А для iPhone?</h3>
-    <p>Готовится веб-версия, которая открывается по ссылке и добавляется на экран «Домой»
-    как обычное приложение — без App Store и без установки.</p>
+    <p><a href="app/">Веб-версия</a> открывается по ссылке в Safari и добавляется на экран
+    «Домой» как обычное приложение: «Поделиться» → «На экран Домой». Дальше запускается
+    с иконки, без адресной строки, и работает офлайн. App Store и установка не нужны.</p>
 
     <h3>Приложение официальное?</h3>
     <p>Нет. Это студенческий проект: он просто показывает то, что университет публикует
