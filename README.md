@@ -3,7 +3,7 @@
 <p align="center">
   Неофициальное приложение расписания <a href="https://www.smtu.ru/">Санкт-Петербургского
   государственного морского технического университета</a>.<br>
-  Открывается мгновенно, работает без интернета, весит 54 КБ и ничего о вас не собирает.
+  Открывается мгновенно, работает без интернета, весит 61 КБ и ничего о вас не собирает.
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   <a href="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml">
     <img alt="Сборка" src="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml/badge.svg"></a>
   <img alt="Android 5.0+" src="https://img.shields.io/badge/Android-5.0%2B-3DDC84">
-  <img alt="Размер APK" src="https://img.shields.io/badge/APK-54%20%D0%9A%D0%91-1A3E8C">
+  <img alt="Размер APK" src="https://img.shields.io/badge/APK-61%20%D0%9A%D0%91-1A3E8C">
   <img alt="Зависимостей нет" src="https://img.shields.io/badge/%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen">
   <img alt="Тестов 50" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-50-brightgreen">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
@@ -54,8 +54,8 @@
 - **Неделя и день.** Свайп влево-вправо листает день или неделю, кнопка
   «Сегодня» возвращает к текущему дню. Весь семестр скачивается одним запросом,
   поэтому листание мгновенное и работает офлайн.
-- **Видно, что идёт прямо сейчас**: текущая пара подсвечена, уже прошедшие
-  сегодня — приглушены.
+- **Счётчик до пары** в шапке: сколько осталось до конца текущей или сколько
+  ждать ближайшую. Текущая пара подсвечена, прошедшие сегодня — приглушены.
 - **Расписание преподавателя** открывается прямо в приложении — со всеми его
   группами; оттуда можно перейти к расписанию любой из них.
 - **Поиск** по предмету, преподавателю, аудитории, типу занятия и группе.
@@ -242,7 +242,7 @@ MIT — см. [LICENSE](LICENSE). Приложение не связано с С
 
 Unofficial schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint Petersburg
 State Marine Technical University). Pure Java, zero third-party libraries (no
-AndroidX), all views built in code; the signed release APK is 54 KB.
+AndroidX), all views built in code; the signed release APK is 61 KB.
 
 **Features.** Pick your group once from all 449; week and day views with swipe
 navigation; the lesson happening now is highlighted; a teacher's full schedule

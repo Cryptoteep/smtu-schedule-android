@@ -114,6 +114,13 @@ public final class Ui {
         return t;
     }
 
+    /** Readable text on a coloured background. */
+    public static int onColor(int color) {
+        double luminance = (0.299 * Color.red(color) + 0.587 * Color.green(color)
+                + 0.114 * Color.blue(color)) / 255.0;
+        return luminance > 0.6 ? 0xFF10131A : Color.WHITE;
+    }
+
     public static LinearLayout row(Context ctx) {
         LinearLayout l = new LinearLayout(ctx);
         l.setOrientation(LinearLayout.HORIZONTAL);

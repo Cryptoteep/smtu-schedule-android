@@ -357,8 +357,44 @@ function render() {
   $('today').hidden = atToday;
 
   renderDays();
+  renderNowBar();
   renderBody();
   renderStatus();
+}
+
+/**
+ * Сколько осталось до конца идущей пары — или до начала ближайшей сегодня.
+ * Считается от текущего момента независимо от того, какой день открыт.
+ */
+function renderNowBar() {
+  const bar = $('nowbar');
+  const day = today();
+  const minutes = nowMinutes();
+  const lessons = lessonsOn(day);
+
+  const running = lessons.find(l => minutes >= l.start && minutes < l.end);
+  if (running) {
+    bar.textContent = 'Идёт: ' + running.subject + ' · осталось ' + humanMinutes(running.end - minutes);
+    bar.hidden = false;
+    return;
+  }
+  const next = lessons.find(l => l.start > minutes);
+  if (next) {
+    bar.textContent = 'Следующая: ' + next.subject + ' через ' + humanMinutes(next.start - minutes) +
+      ' · в ' + next.time.split('-')[0].trim();
+    bar.hidden = false;
+    return;
+  }
+  bar.hidden = true;
+}
+
+/** 45 -> «45 минут», 95 -> «1 час 35 минут». */
+function humanMinutes(minutes) {
+  if (minutes < 1) return 'меньше минуты';
+  if (minutes < 60) return minutes + ' ' + plural(minutes, 'минуту', 'минуты', 'минут');
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  const hours = h + ' ' + plural(h, 'час', 'часа', 'часов');
+  return m === 0 ? hours : hours + ' ' + m + ' ' + plural(m, 'минуту', 'минуты', 'минут');
 }
 
 function renderDays() {
@@ -644,7 +680,7 @@ document.addEventListener('touchend', e => {
 
 // подсветка «идёт сейчас» стареет — обновляем при возврате на вкладку и раз в минуту
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
-setInterval(() => { if (!document.hidden) render(); }, 60000);
+setInterval(() => { if (!document.hidden) render(); }, 30000);   // счётчик до пары должен идти
 
 if ('serviceWorker' in navigator)
   navigator.serviceWorker.register('sw.js').catch(() => { /* не критично */ });

@@ -71,11 +71,12 @@ public final class MainActivity extends Activity {
     // ------------------------------------------------------------------ views
 
     private Ui ui;
-    private TextView tvTitle, tvRange, tvWeek, tvMode, tvToday, tvEmpty, tvStatus;
+    private TextView tvTitle, tvRange, tvWeek, tvMode, tvToday, tvEmpty, tvStatus, tvNow;
     private LinearLayout dayStrip, headerBox;
     private ListView list;
     private ProgressBar progress;
     private GestureDetector swipe;
+    private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     // ------------------------------------------------------------------ setup
 
@@ -114,7 +115,21 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         render();               // the "now" highlight and "today" marker age quickly
+        ticker.run();           // and the countdown has to keep counting
     }
+
+    @Override protected void onPause() {
+        super.onPause();
+        uiHandler.removeCallbacks(ticker);
+    }
+
+    /** Redraws the countdown once a half-minute while the screen is in front. */
+    private final Runnable ticker = new Runnable() {
+        @Override public void run() {
+            updateNowBar();
+            uiHandler.postDelayed(this, 30000);
+        }
+    };
 
     @Override public void onBackPressed() {
         if (teacherId != null) {
@@ -270,6 +285,18 @@ public final class MainActivity extends Activity {
         stripLp.topMargin = dp(6);
         header.addView(dayStrip, stripLp);
 
+        // row 4: countdown to the end of the current lesson, or to the next one
+        tvNow = new TextView(this);
+        tvNow.setTextSize(13);
+        tvNow.setTypeface(Typeface.DEFAULT_BOLD);
+        tvNow.setTextColor(Ui.onColor(ui.accent));
+        tvNow.setBackground(Ui.rounded(ui.accent, 10, this));
+        tvNow.setPadding(dp(12), dp(7), dp(12), dp(7));
+        tvNow.setVisibility(View.GONE);
+        LinearLayout.LayoutParams nowLp = Ui.lp(-1, -2);
+        nowLp.topMargin = dp(8);
+        header.addView(tvNow, nowLp);
+
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         progress.setVisibility(View.GONE);
@@ -372,6 +399,7 @@ public final class MainActivity extends Activity {
 
         long shown = shownDay();
         boolean upper = schedule.isUpper(shown);
+        updateNowBar();
         tvWeek.setText(upper ? "ВЕРХНЯЯ" : "НИЖНЯЯ");
         tvWeek.setBackground(Ui.rounded(upper ? ui.upperBadge : ui.lowerBadge, 10, this));
         tvWeek.setVisibility(schedule.isEmpty() ? View.GONE : View.VISIBLE);
@@ -430,6 +458,43 @@ public final class MainActivity extends Activity {
         return next == Dates.NO_DATE ? empty
                 : empty + "\nСледующие занятия: "
                         + Dates.weekdayDayMonth(next).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Сколько осталось до конца идущей пары — или до начала ближайшей сегодня.
+     * Считается всегда от текущего момента, независимо от того, какой день
+     * открыт на экране: это ответ на вопрос «сколько ещё сидеть».
+     */
+    private void updateNowBar() {
+        if (tvNow == null) return;
+        long day = Dates.today();
+        int minutes = Dates.nowMinutes();
+
+        Lesson running = schedule.runningAt(day, minutes);
+        if (running != null) {
+            tvNow.setText("Идёт: " + running.subject + " · осталось "
+                    + humanMinutes(running.endMinutes() - minutes));
+            tvNow.setVisibility(View.VISIBLE);
+            return;
+        }
+        Lesson next = schedule.nextAfter(day, minutes);
+        if (next != null) {
+            tvNow.setText("Следующая: " + next.subject + " через "
+                    + humanMinutes(next.startMinutes() - minutes)
+                    + " · в " + next.time.split("-")[0].trim());
+            tvNow.setVisibility(View.VISIBLE);
+            return;
+        }
+        tvNow.setVisibility(View.GONE);
+    }
+
+    /** 45 -> "45 мин", 95 -> "1 ч 35 мин". */
+    private static String humanMinutes(int minutes) {
+        if (minutes < 1) return "меньше минуты";
+        if (minutes < 60) return minutes + " " + plural(minutes, "минуту", "минуты", "минут");
+        int h = minutes / 60, m = minutes % 60;
+        String hours = h + " " + plural(h, "час", "часа", "часов");
+        return m == 0 ? hours : hours + " " + m + " " + plural(m, "минуту", "минуты", "минут");
     }
 
     private void updateStatus() {
