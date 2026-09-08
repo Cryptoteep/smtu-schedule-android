@@ -21,6 +21,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Web app syntax
+        run: |
+          node --check docs/app/app.js
+          node --check docs/app/sw.js
+          python3 -c "import json; json.load(open('docs/app/manifest.webmanifest'))"
+
       - name: Unit tests
         run: ./gradlew test --no-daemon
 

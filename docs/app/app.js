@@ -524,8 +524,7 @@ async function openPicker() {
   } catch (e) {
     if (!groups.length) {
       status.textContent = 'Не удалось получить список групп: ' + e.message +
-        '.
-Если включён VPN или блокировщик рекламы — выключите их и нажмите «Повторить».';
+        '.\nЕсли включён VPN или блокировщик рекламы — выключите их и нажмите «Повторить».';
       retry.hidden = false;
       retry.onclick = () => { dlg.close(); openPicker(); };
     }
