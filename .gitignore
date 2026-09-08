@@ -25,3 +25,7 @@ keystore.properties
 
 # Release signing key (never commit)
 .keys/
+
+# npm-зависимость сборщика данных ставится только в CI
+node_modules/
+package-lock.json

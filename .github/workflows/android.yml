@@ -3,6 +3,8 @@ name: build
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/data/**'          # обновление расписания не трогает код
   pull_request:
   workflow_dispatch:
 

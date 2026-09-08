@@ -1,0 +1,45 @@
+name: data
+
+# Собирает расписания всех групп со smtu.ru и кладёт их рядом с веб-версией,
+# чтобы приложению не нужен был ни прокси, ни чей-либо сервер.
+on:
+  schedule:
+    - cron: '17 2,8,14,20 * * *'      # четыре раза в сутки, вразнобой с круглым часом
+  workflow_dispatch:
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install parser
+        run: npm install --no-save linkedom
+
+      - name: Collect schedules
+        run: node tools/build-data.mjs
+
+      - name: Commit if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data
+          if git diff --cached --quiet; then
+            echo "расписание не менялось — коммит не нужен"
+            exit 0
+          fi
+          groups=$(git diff --cached --name-only -- docs/data/g | wc -l)
+          git commit -m "Data: refresh schedules ($groups groups changed)"
+          git push

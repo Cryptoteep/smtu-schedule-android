@@ -12,15 +12,11 @@
 'use strict';
 
 /*
- * Зеркала прокси. У части пользователей один адрес может не открываться
- * (блокировщик в браузере, VPN, капризы провайдера), поэтому приложение
- * перебирает их по очереди и запоминает тот, который ответил.
+ * Данные лежат рядом с приложением: их раз в несколько часов собирает
+ * GitHub Actions прямо со страниц smtu.ru (см. tools/build-data.mjs).
+ * Поэтому приложению не нужны ни прокси, ни чужие серверы — только свой адрес.
  */
-const PROXIES = [
-  'https://schedule-proxy.example/smtu-api',
-  'https://schedule-proxy.example/smtu-api',
-  'https://schedule-proxy.example/smtu-api'
-];
+const DATA = '../data';
 const STORE = 'smtu.';
 const FETCH_TIMEOUT = 20000;
 
@@ -58,112 +54,6 @@ function weekRange(mon) {
   return a[2] + '–' + b[2] + ' ' + MONTH_GEN[b[1] - 1];
 }
 
-// ---------------------------------------------------------------- разбор
-
-/** Строки табличного вида страницы расписания. */
-function parseSchedule(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const table = doc.querySelector('#table-container');
-  const out = [];
-  if (!table) return out;
-
-  for (const block of table.querySelectorAll('.js-day-block')) {
-    const day = (block.querySelector('h2, h3')?.textContent || '').trim();
-    const cols = {};
-    block.querySelectorAll('th[scope="col"]').forEach((th, i) => {
-      const name = th.textContent.trim().toLowerCase();
-      if (name.startsWith('время')) cols.time = i;
-      else if (name.startsWith('дат')) cols.dates = i;
-      else if (name.startsWith('аудитор')) cols.room = i;
-      else if (name.startsWith('групп')) cols.group = i;
-      else if (name.startsWith('предмет') || name.startsWith('дисциплин')) cols.subject = i;
-      else if (name.startsWith('преподават')) cols.teacher = i;
-    });
-    const col = Object.assign({ time: 0, dates: 2, room: 3, group: 4, subject: 5, teacher: 6 }, cols);
-
-    for (const tr of block.querySelectorAll('tr.js-week-container')) {
-      const cells = tr.querySelectorAll('th, td');
-      const cell = i => cells[i] || null;
-      const text = i => (cell(i)?.textContent || '').replace(/\s+/g, ' ').trim();
-
-      const subjectCell = cell(col.subject);
-      if (!subjectCell) continue;
-      const lines = subjectCell.innerHTML.split(/<br\s*\/?>/i)
-        .map(part => {
-          const box = document.createElement('div');
-          box.innerHTML = part;
-          return box.textContent.replace(/\s+/g, ' ').trim();
-        })
-        .filter(Boolean);
-      if (!lines.length) continue;
-
-      const lesson = {
-        day,
-        upper: tr.classList.contains('js-week-1'),
-        time: (text(col.time).match(/\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/) || [''])[0].replace(/\s*-\s*/, ' - '),
-        dateRange: text(col.dates),
-        room: text(col.room),
-        group: text(col.group),
-        subject: lines[0],
-        type: lines[1] || '',
-        note: '',
-        teacher: text(col.teacher),
-        teacherId: '',
-        days: []
-      };
-
-      // третья строка предмета — либо преподаватель без карточки, либо примечание
-      for (const extra of lines.slice(2)) {
-        if (!lesson.teacher && /^\p{Lu}[\p{L}-]+(\s+\p{Lu}[\p{L}]*\.?){1,3}$/u.test(extra)) lesson.teacher = extra;
-        else lesson.note = lesson.note ? lesson.note + '; ' + extra : extra;
-      }
-
-      const link = cell(col.teacher)?.querySelector('a[href*="/viewperson/"]');
-      if (link) lesson.teacherId = (link.getAttribute('href').match(/(\d+)/) || [''])[0];
-
-      const title = cell(col.dates)?.getAttribute('title') || '';
-      for (const d of title.split(/\s*,\s*/)) {
-        const ed = parseRu(d);
-        if (ed !== null && !lesson.days.includes(ed)) lesson.days.push(ed);
-      }
-      lesson.days.sort((a, b) => a - b);
-      lesson.start = parseTime(lesson.time);
-      lesson.end = parseTime(lesson.time.split('-')[1] || '');
-
-      if (lesson.subject) out.push(lesson);
-    }
-  }
-  return out;
-}
-
-/** Список групп со страницы /ru/listschedule/. */
-function parseGroups(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const seen = new Map();
-  for (const a of doc.querySelectorAll('a[href*="/viewschedule_new/"]')) {
-    const id = (a.getAttribute('href').match(/viewschedule_new\/(\d+)/) || [])[1];
-    const name = a.textContent.replace(/\s+/g, ' ').trim();
-    if (id && name && !seen.has(id)) seen.set(id, { id, name });
-  }
-  return [...seen.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, 'ru', { numeric: true }));
-}
-
-/** Название со страницы: «Расписание занятий группы 12826-11» → «12826-11». */
-function parseTitle(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  for (const h1 of doc.querySelectorAll('h1')) {
-    const t = h1.textContent.replace(/\s+/g, ' ').trim();
-    const i = t.indexOf('Расписание занятий');
-    if (i < 0) continue;
-    let rest = t.slice(i + 'Расписание занятий'.length).trim();
-    for (const p of ['группы', 'группа', 'преподавателя', 'преподаватель', 'аудитории'])
-      if (rest.startsWith(p)) { rest = rest.slice(p.length).trim(); break; }
-    return rest;
-  }
-  return '';
-}
-
 // -------------------------------------------------------------- чётность
 
 /**
@@ -197,38 +87,32 @@ function isUpper(parity, ed) {
 
 // ------------------------------------------------------------------ сеть
 
-async function fetchOnce(base, path) {
+async function fetchJson(path) {
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), FETCH_TIMEOUT);
   try {
-    const res = await fetch(base + path, { cache: 'no-cache', signal: stop.signal });
-    if (!res.ok) throw new Error('ответ ' + res.status);
-    const text = await res.text();
-    if (text.length < 500) throw new Error('пустой ответ');
-    return text;
+    const res = await fetch(DATA + path, { signal: stop.signal });
+    if (!res.ok) throw new Error(res.status === 404 ? 'нет данных' : 'ответ ' + res.status);
+    return await res.json();
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? 'сервер не ответил'
+                  : e.name === 'TypeError' ? 'нет интернета'
+                  : e.message);
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Пробуем зеркала по очереди, начиная с того, который работал в прошлый раз. */
-async function fetchPage(path) {
-  const preferred = localStorage.getItem(STORE + 'proxy');
-  const order = preferred ? [preferred, ...PROXIES.filter(p => p !== preferred)] : PROXIES.slice();
-  const problems = [];
-  for (const base of order) {
-    try {
-      const text = await fetchOnce(base, path);
-      localStorage.setItem(STORE + 'proxy', base);
-      return text;
-    } catch (e) {
-      const why = e.name === 'AbortError' ? 'долго не отвечает'
-                : e.name === 'TypeError' ? 'запрос не прошёл'
-                : e.message;
-      problems.push(new URL(base).hostname + ' — ' + why);
-    }
-  }
-  throw new Error(problems.join('; '));
+/** Список групп: id, название и сколько у неё занятий. */
+async function fetchGroups() {
+  const index = await fetchJson('/index.json');
+  return { groups: index.groups, updated: Date.parse(index.updated) || 0 };
+}
+
+/** Расписание одной группы. */
+async function fetchGroupSchedule(id) {
+  const box = await fetchJson('/g/' + id + '.json');
+  return { lessons: hydrate(box.lessons || []), title: box.name || '', at: Date.parse(box.updated) || 0 };
 }
 
 // --------------------------------------------------------------- состояние
@@ -280,19 +164,18 @@ function setLessons(lessons, title, at) {
 
 async function load(teacher, id, name) {
   const cached = loadCache(teacher, id);
-  if (cached) setLessons(cached.lessons, cached.title || name, cached.at);
+  if (cached) setLessons(hydrate(cached.lessons), cached.title || name, cached.at);
   else setLessons([], name, 0);
 
   state.loading = true;
   render();
   try {
-    const path = teacher ? '/ru/viewschedule_new/teacher/' + id + '/' : '/ru/viewschedule_new/' + id + '/';
-    const html = await fetchPage(path);
-    const lessons = parseSchedule(html);
-    const title = parseTitle(html) || name || '';
+    const box = await fetchJson('/' + (teacher ? 't' : 'g') + '/' + id + '.json');
+    const lessons = hydrate(box.lessons || []);
+    const title = box.name || name || '';
     if (lessons.length) {
       saveCache(teacher, id, lessons, title);
-      setLessons(lessons, title, Date.now());
+      setLessons(lessons, title, await updatedAt());
     }
   } catch (e) {
     if (!cached) toast('Не удалось загрузить: ' + e.message);
@@ -300,6 +183,19 @@ async function load(teacher, id, name) {
     state.loading = false;
     render();
   }
+}
+
+/** Когда данные последний раз собирали со smtu.ru. */
+let updatedCache = null;
+async function updatedAt() {
+  if (updatedCache !== null) return updatedCache;
+  try {
+    const index = await fetchJson('/index.json');
+    updatedCache = Date.parse(index.updated) || Date.now();
+  } catch (e) {
+    updatedCache = Date.now();
+  }
+  return updatedCache;
 }
 
 // ----------------------------------------------------------------- запросы
@@ -554,13 +450,15 @@ async function openPicker() {
   if (cached) { try { groups = JSON.parse(cached); show(groups); } catch (e) { groups = []; } }
 
   try {
-    groups = parseGroups(await fetchPage('/ru/listschedule/'));
+    const index = await fetchJson('/index.json');
+    groups = index.groups;
+    updatedCache = Date.parse(index.updated) || Date.now();
     localStorage.setItem(STORE + 'groups', JSON.stringify(groups));
     show(groups);
   } catch (e) {
     if (!groups.length) {
       status.textContent = 'Не удалось получить список групп: ' + e.message +
-        '.\nЕсли включён VPN или блокировщик рекламы — выключите их и нажмите «Повторить».';
+        '.\nПроверьте интернет и нажмите «Повторить».';
       retry.hidden = false;
       retry.onclick = () => { dlg.close(); openPicker(); };
     }
