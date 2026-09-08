@@ -123,11 +123,14 @@ public final class MainActivity extends Activity {
         uiHandler.removeCallbacks(ticker);
     }
 
-    /** Redraws the countdown once a half-minute while the screen is in front. */
+    /**
+     * Пока экран перед глазами, счётчик тикает раз в секунду: это всего одна
+     * строка текста, зато сразу видно, что он идёт, а не завис.
+     */
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             updateNowBar();
-            uiHandler.postDelayed(this, 30000);
+            uiHandler.postDelayed(this, 1000);
         }
     };
 
@@ -468,19 +471,20 @@ public final class MainActivity extends Activity {
     private void updateNowBar() {
         if (tvNow == null) return;
         long day = Dates.today();
-        int minutes = Dates.nowMinutes();
+        int seconds = Dates.nowSeconds();
+        int minutes = seconds / 60;
 
         Lesson running = schedule.runningAt(day, minutes);
         if (running != null) {
             tvNow.setText("Идёт: " + running.subject + " · осталось "
-                    + humanMinutes(running.endMinutes() - minutes));
+                    + countdown(running.endMinutes() * 60 - seconds));
             tvNow.setVisibility(View.VISIBLE);
             return;
         }
         Lesson next = schedule.nextAfter(day, minutes);
         if (next != null) {
             tvNow.setText("Следующая: " + next.subject + " через "
-                    + humanMinutes(next.startMinutes() - minutes)
+                    + countdown(next.startMinutes() * 60 - seconds)
                     + " · в " + next.time.split("-")[0].trim());
             tvNow.setVisibility(View.VISIBLE);
             return;
@@ -488,13 +492,15 @@ public final class MainActivity extends Activity {
         tvNow.setVisibility(View.GONE);
     }
 
-    /** 45 -> "45 мин", 95 -> "1 ч 35 мин". */
-    private static String humanMinutes(int minutes) {
-        if (minutes < 1) return "меньше минуты";
-        if (minutes < 60) return minutes + " " + plural(minutes, "минуту", "минуты", "минут");
-        int h = minutes / 60, m = minutes % 60;
-        String hours = h + " " + plural(h, "час", "часа", "часов");
-        return m == 0 ? hours : hours + " " + m + " " + plural(m, "минуту", "минуты", "минут");
+    /**
+     * Обратный отсчёт: "23:45", а при часах "4:51:23".
+     * Секунды всегда на месте — видно, что счётчик идёт, а не завис.
+     */
+    private static String countdown(int sec) {
+        if (sec <= 0) return "0:00";
+        int h = sec / 3600, m = sec % 3600 / 60, s = sec % 60;
+        return h > 0 ? String.format(Locale.ROOT, "%d:%02d:%02d", h, m, s)
+                     : String.format(Locale.ROOT, "%d:%02d", m, s);
     }
 
     private void updateStatus() {

@@ -94,8 +94,13 @@ public final class Dates {
 
     /** Minutes since midnight, device time zone. */
     public static int nowMinutes() {
+        return nowSeconds() / 60;
+    }
+
+    /** Seconds since midnight — the countdown ticks on these. */
+    public static int nowSeconds() {
         Calendar c = Calendar.getInstance();
-        return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
+        return c.get(Calendar.HOUR_OF_DAY) * 3600 + c.get(Calendar.MINUTE) * 60 + c.get(Calendar.SECOND);
     }
 
     /** Milliseconds at local midnight of an epoch day (for calendar intents). */

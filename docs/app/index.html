@@ -77,6 +77,7 @@
   .nowbar {
     margin-top:8px; background:var(--accent); color:#fff; border-radius:10px;
     padding:7px 12px; font-size:13px; font-weight:700;
+    font-variant-numeric: tabular-nums;   /* цифры не прыгают на каждой секунде */
   }
   @media (prefers-color-scheme: dark) { .nowbar { color:#10131A; } }
 
@@ -185,7 +186,7 @@
   <div class="dlg-actions"><button id="finderClose">Закрыть</button></div>
 </dialog>
 
-<script src="parser.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="parser.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

@@ -265,18 +265,19 @@ function render() {
 function renderNowBar() {
   const bar = $('nowbar');
   const day = today();
-  const minutes = nowMinutes();
+  const now = new Date();
+  const seconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const lessons = lessonsOn(day);
 
-  const running = lessons.find(l => minutes >= l.start && minutes < l.end);
+  const running = lessons.find(l => seconds >= l.start * 60 && seconds < l.end * 60);
   if (running) {
-    bar.textContent = 'Идёт: ' + running.subject + ' · осталось ' + humanMinutes(running.end - minutes);
+    bar.textContent = 'Идёт: ' + running.subject + ' · осталось ' + countdown(running.end * 60 - seconds);
     bar.hidden = false;
     return;
   }
-  const next = lessons.find(l => l.start > minutes);
+  const next = lessons.find(l => l.start * 60 > seconds);
   if (next) {
-    bar.textContent = 'Следующая: ' + next.subject + ' через ' + humanMinutes(next.start - minutes) +
+    bar.textContent = 'Следующая: ' + next.subject + ' через ' + countdown(next.start * 60 - seconds) +
       ' · в ' + next.time.split('-')[0].trim();
     bar.hidden = false;
     return;
@@ -284,13 +285,15 @@ function renderNowBar() {
   bar.hidden = true;
 }
 
-/** 45 -> «45 минут», 95 -> «1 час 35 минут». */
-function humanMinutes(minutes) {
-  if (minutes < 1) return 'меньше минуты';
-  if (minutes < 60) return minutes + ' ' + plural(minutes, 'минуту', 'минуты', 'минут');
-  const h = Math.floor(minutes / 60), m = minutes % 60;
-  const hours = h + ' ' + plural(h, 'час', 'часа', 'часов');
-  return m === 0 ? hours : hours + ' ' + m + ' ' + plural(m, 'минуту', 'минуты', 'минут');
+/**
+ * Обратный отсчёт: «23:45» или «4:51:23» при часах.
+ * Секунды всегда на месте — видно, что счётчик идёт, а не завис.
+ */
+function countdown(sec) {
+  if (sec <= 0) return '0:00';
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? h + ':' + String(m).padStart(2, '0') + ':' + ss : m + ':' + ss;
 }
 
 function renderDays() {
@@ -577,8 +580,11 @@ document.addEventListener('touchend', e => {
 }, { passive: true });
 
 // подсветка «идёт сейчас» стареет — обновляем при возврате на вкладку и раз в минуту
+// счётчик тикает каждую секунду — это всего одна строка текста;
+// полная перерисовка нужна куда реже: подсветка «идёт сейчас» и метка «сегодня»
+setInterval(renderNowBar, 1000);
+setInterval(() => { if (!document.hidden) render(); }, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
-setInterval(() => { if (!document.hidden) render(); }, 30000);   // счётчик до пары должен идти
 
 if ('serviceWorker' in navigator)
   navigator.serviceWorker.register('sw.js').catch(() => { /* не критично */ });
