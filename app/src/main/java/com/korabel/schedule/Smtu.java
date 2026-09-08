@@ -22,8 +22,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -43,14 +45,24 @@ public final class Smtu {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36";
-    private static final int CONNECT_TIMEOUT = 15000;
-    private static final int READ_TIMEOUT = 30000;
+    private static final int CONNECT_TIMEOUT = 9000;
+    private static final int READ_TIMEOUT = 20000;
     private static final int MAX_BYTES = 8 * 1024 * 1024;
     private static final int CACHE_SCHEMA = 2;
     private static final int MAX_TEACHER_CACHES = 12;
 
+    /**
+     * Сколько ждать сайт, прежде чем показать резервную копию.
+     *
+     * Оба источника запрашиваются одновременно, но у сайта фора: если он
+     * успевает ответить за это время, пользователь видит живые данные и
+     * никакой пометки о копии. Не успел — расписание на экране уже есть, а
+     * сайт догружается в фоне и заменит копию, когда придёт.
+     */
+    private static final long MIRROR_GRACE_MS = 2500;
+
     private static final Handler UI = new Handler(Looper.getMainLooper());
-    private static final ExecutorService POOL = Executors.newFixedThreadPool(2, r -> {
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(4, r -> {
         Thread t = new Thread(r, "smtu-net");
         t.setDaemon(true);
         return t;
@@ -70,29 +82,19 @@ public final class Smtu {
      * immediately, then a fresh one when the network answers.
      */
     public static void groups(Context ctx, Callback<List<Group>> cb) {
-        Context app = ctx.getApplicationContext();
-        List<Group> cached = readGroups(app);
+        final Context app = ctx.getApplicationContext();
+        final List<Group> cached = readGroups(app);
         if (!cached.isEmpty()) cb.done(cached, null);
-        POOL.execute(() -> {
-            try {
-                List<Group> fresh = ScheduleParser.parseGroups(httpGet(HOST + "/ru/listschedule/"));
-                if (fresh.isEmpty()) throw new IOException("список групп пуст");
-                writeGroups(app, fresh);
-                post(cb, fresh, null);
-                return;
-            } catch (Exception ignored) {
-                // сайт недоступен (частый случай — VPN с зарубежным выходом):
-                // берём тот же список из среза, который собирает GitHub
-            }
-            try {
-                List<Group> fresh = Mirror.parseGroups(httpGet(Mirror.groupsUrl()));
-                if (fresh.isEmpty()) throw new IOException("список групп пуст");
-                writeGroups(app, fresh);
-                post(cb, fresh, null);
-            } catch (Exception e) {
-                if (cached.isEmpty()) post(cb, cached, message(e));
-            }
-        });
+        race(cb,
+                () -> nonEmpty(ScheduleParser.parseGroups(httpGet(HOST + "/ru/listschedule/"))),
+                () -> nonEmpty(Mirror.parseGroups(httpGet(Mirror.groupsUrl()))),
+                fresh -> writeGroups(app, fresh),
+                cached);
+    }
+
+    private static List<Group> nonEmpty(List<Group> groups) throws IOException {
+        if (groups.isEmpty()) throw new IOException("список групп пуст");
+        return groups;
     }
 
     // ---------------------------------------------------------------- schedule
@@ -107,29 +109,29 @@ public final class Smtu {
      * cache. On a network error the cached copy is returned with the error, so
      * the UI can keep showing data and still say what went wrong.
      */
-    public static void schedule(Context ctx, boolean teacher, String id, Callback<Schedule> cb) {
-        Context app = ctx.getApplicationContext();
-        POOL.execute(() -> {
-            Schedule cached = readSchedule(app, teacher, id);
-            try {
-                String path = teacher ? "/ru/viewschedule_new/teacher/" : "/ru/viewschedule_new/";
-                String html = httpGet(HOST + path + id + "/");
-                List<Lesson> lessons = ScheduleParser.parseSchedule(html);
-                if (lessons.isEmpty() && !cached.isEmpty()) {
-                    post(cb, cached, "Расписание на сайте пусто — показано сохранённое");
-                    return;
-                }
-                String title = ScheduleParser.parseTitle(html);
-                if (title.isEmpty() && teacher && !lessons.isEmpty()) title = lessons.get(0).teacher;
-                Schedule merged = cached.mergedWith(
-                        new Schedule(lessons, title, System.currentTimeMillis()));
-                writeSchedule(app, teacher, id, merged);
-                if (teacher) trimTeacherCaches(app);
-                post(cb, merged, null);
-            } catch (Exception siteError) {
-                fromMirror(app, teacher, id, cached, cb, siteError);
-            }
-        });
+    public static void schedule(Context ctx, final boolean teacher, final String id,
+                                Callback<Schedule> cb) {
+        final Context app = ctx.getApplicationContext();
+        final Schedule cached = readSchedule(app, teacher, id);
+        race(cb,
+                () -> fromSite(teacher, id, cached),
+                () -> fromMirror(teacher, id, cached),
+                fresh -> {
+                    writeSchedule(app, teacher, id, fresh);
+                    if (teacher) trimTeacherCaches(app);
+                },
+                cached);
+    }
+
+    /** Живая страница расписания на сайте университета. */
+    private static Schedule fromSite(boolean teacher, String id, Schedule cached) throws Exception {
+        String path = teacher ? "/ru/viewschedule_new/teacher/" : "/ru/viewschedule_new/";
+        String html = httpGet(HOST + path + id + "/");
+        List<Lesson> lessons = ScheduleParser.parseSchedule(html);
+        if (lessons.isEmpty()) throw new IOException("расписание на сайте пусто");
+        String title = ScheduleParser.parseTitle(html);
+        if (title.isEmpty() && teacher) title = lessons.get(0).teacher;
+        return cached.mergedWith(new Schedule(lessons, title, System.currentTimeMillis()));
     }
 
     /**
@@ -139,22 +141,107 @@ public final class Smtu {
      * может отставать на несколько часов — об этом честно сообщается в ответе,
      * а метка времени берётся из заголовка Last-Modified.
      */
-    private static void fromMirror(Context app, boolean teacher, String id,
-                                   Schedule cached, Callback<Schedule> cb, Exception siteError) {
+    private static Schedule fromMirror(boolean teacher, String id, Schedule cached)
+            throws Exception {
+        Response res = getWithHeaders(Mirror.scheduleUrl(teacher, id));
+        List<Lesson> lessons = Mirror.parseSchedule(res.body);
+        if (lessons.isEmpty()) throw new IOException("в срезе нет этого расписания");
+        long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
+        return cached.mergedWith(new Schedule(lessons, Mirror.parseTitle(res.body), at, true));
+    }
+
+    // ------------------------------------------------------------------- race
+
+    private interface Source<T> {
+        T load() throws Exception;
+    }
+
+    private interface Sink<T> {
+        void store(T value);
+    }
+
+    /**
+     * Сайт и резервная копия запрашиваются одновременно; показывается тот, кто
+     * успел первым, с форой у сайта (см. {@link #MIRROR_GRACE_MS}).
+     *
+     * Так сделано потому, что с телефона «недоступен» и «отвечает медленно»
+     * неотличимы: под VPN с зарубежным выходом сервер вуза молчит, и прежний
+     * последовательный порядок держал бы пустой экран полминуты. Проверять
+     * «включён ли VPN» бесполезно — VPN бывает и российский, с него сайт
+     * открывается прекрасно.
+     *
+     * Ответ может прийти дважды: сначала копия, потом живые данные, если сайт
+     * всё-таки отозвался. Доставка и запись в кэш сериализованы общим замком,
+     * поэтому копия не может затереть более свежий ответ сайта.
+     */
+    private static <T> void race(final Callback<T> cb, final Source<T> site,
+                                 final Source<T> mirror, final Sink<T> sink, final T fallback) {
+        final Object gate = new Object();
+        final CountDownLatch siteSettled = new CountDownLatch(1);
+        final boolean[] siteWon = {false};
+        final String[] siteError = {null};
+        final long started = System.currentTimeMillis();
+
+        POOL.execute(() -> {
+            try {
+                T fresh = site.load();
+                synchronized (gate) {
+                    siteWon[0] = true;
+                    sink.store(fresh);
+                    post(cb, fresh, null);
+                }
+            } catch (Exception e) {
+                siteError[0] = message(e);
+            } finally {
+                siteSettled.countDown();
+            }
+        });
+
+        POOL.execute(() -> {
+            T copy = null;
+            String mirrorError = null;
+            try {
+                copy = mirror.load();
+            } catch (Exception e) {
+                mirrorError = message(e);
+            }
+            // копия есть — ждём сайт остаток форы; копии нет — ждём до конца,
+            // иначе сообщать об ошибке было бы преждевременно
+            await(siteSettled, copy != null
+                    ? MIRROR_GRACE_MS - (System.currentTimeMillis() - started) : 0);
+            synchronized (gate) {
+                if (siteWon[0]) return;
+                if (copy != null) {
+                    sink.store(copy);
+                    post(cb, copy, null);
+                    return;
+                }
+            }
+            await(siteSettled, 0);
+            synchronized (gate) {
+                if (siteWon[0]) return;
+                String why = siteError[0] != null ? siteError[0] : mirrorError;
+                post(cb, fallback, empty(fallback)
+                        ? "Не удалось загрузить: " + why
+                        : "Нет связи с smtu.ru — показано сохранённое");
+            }
+        });
+    }
+
+    private static boolean empty(Object value) {
+        if (value instanceof Schedule) return ((Schedule) value).isEmpty();
+        if (value instanceof List) return ((List<?>) value).isEmpty();
+        return value == null;
+    }
+
+    /** {@code ms <= 0} — ждать сколько понадобится. */
+    private static void await(CountDownLatch latch, long ms) {
         try {
-            Response res = getWithHeaders(Mirror.scheduleUrl(teacher, id));
-            List<Lesson> lessons = Mirror.parseSchedule(res.body);
-            if (lessons.isEmpty()) throw new IOException("в срезе нет этого расписания");
-            String title = Mirror.parseTitle(res.body);
-            long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
-            Schedule merged = cached.mergedWith(new Schedule(lessons, title, at, true));
-            writeSchedule(app, teacher, id, merged);
-            if (teacher) trimTeacherCaches(app);
-            post(cb, merged, null);
-        } catch (Exception mirrorError) {
-            post(cb, cached, cached.isEmpty()
-                    ? "Не удалось загрузить: " + message(siteError)
-                    : "Нет связи с smtu.ru — показано сохранённое");
+            if (ms == 0) latch.await();
+            else if (ms < 0) return;
+            else latch.await(ms, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -346,7 +433,7 @@ public final class Smtu {
     }
 
     private static void write(File f, String s) throws IOException {
-        File tmp = new File(f.getPath() + ".tmp");
+        File tmp = new File(f.getPath() + ".tmp" + Thread.currentThread().getId());
         FileOutputStream out = new FileOutputStream(tmp);
         try {
             out.write(s.getBytes(StandardCharsets.UTF_8));

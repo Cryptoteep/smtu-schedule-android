@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="w_bg">#FF1A1F27</color>
+    <color name="w_text">#FFE6E9EF</color>
+    <color name="w_sub">#FF9AA3B2</color>
+    <color name="w_lesson">#FF9DB4FF</color>
+    <color name="w_break">#FFF0B65A</color>
+    <color name="w_track">#22FFFFFF</color>
+</resources>

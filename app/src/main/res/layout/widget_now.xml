@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1×2: текущая или ближайшая пара. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wn_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_bg"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/wn_stripe_lesson"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_now_desc"
+        android:background="@color/w_lesson" />
+
+    <ImageView
+        android:id="@+id/wn_stripe_break"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_now_desc"
+        android:background="@color/w_break"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="0dp">
+
+        <TextView
+            android:id="@+id/wn_label"
+            android:text="СЕЙЧАС"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_sub" />
+
+        <TextView
+            android:id="@+id/wn_subject"
+            android:text="Начертательная геометрия"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="@color/w_text" />
+
+        <TextView
+            android:id="@+id/wn_time"
+            android:text="11:50–13:20 · Лекция"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_sub" />
+
+        <TextView
+            android:id="@+id/wn_extra"
+            android:text="до конца 42 мин · ауд. 167"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_lesson" />
+    </LinearLayout>
+</LinearLayout>

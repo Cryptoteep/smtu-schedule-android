@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Расписание СПбГМТУ</string>
+
+    <string name="widget_timer_label">Таймер пары</string>
+    <string name="widget_timer_desc">Кольцо обратного отсчёта: синее — идёт пара, жёлтое — перемена</string>
+    <string name="widget_now_label">Текущая пара</string>
+    <string name="widget_now_desc">Что идёт сейчас или что будет дальше: предмет, время, аудитория</string>
+    <string name="widget_agenda_label">Расписание на день</string>
+    <string name="widget_agenda_desc">Ближайшие пары: сейчас, далее и на следующий учебный день</string>
 </resources>

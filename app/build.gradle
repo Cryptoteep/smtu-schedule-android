@@ -23,14 +23,19 @@ android {
         applicationId "com.korabel.schedule"
         minSdk 21
         targetSdk 36
-        versionCode 6
-        versionName "2.4"
+        versionCode 7
+        versionName "2.5"
         resourceConfigurations += ["ru"]
     }
 
     buildFeatures {
         buildConfig true
     }
+
+    // дата сборки видна в диалоге «О приложении»: по ней сразу понятно,
+    // какой именно APK стоит у человека на руках
+    defaultConfig.buildConfigField "String", "BUILD_DATE",
+            "\"" + new Date().format("dd.MM.yyyy") + "\""
 
     signingConfigs {
         release {

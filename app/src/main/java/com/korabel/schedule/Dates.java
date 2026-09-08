@@ -29,6 +29,9 @@ public final class Dates {
     };
     public static final long NO_DATE = Long.MIN_VALUE;
 
+    /** Русская локаль — только для регистра кириллицы, не для имён дат. */
+    public static final java.util.Locale RU = new java.util.Locale("ru");
+
     private Dates() { }
 
     // ------------------------------------------------------------- conversion

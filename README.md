@@ -3,7 +3,7 @@
 <p align="center">
   Неофициальное приложение расписания <a href="https://www.smtu.ru/">Санкт-Петербургского
   государственного морского технического университета</a>.<br>
-  Открывается мгновенно, работает без интернета, весит 61 КБ и ничего о вас не собирает.
+  Виджеты, планы корпусов, работа без интернета — 89 КБ и ничего о вас не собирает.
 </p>
 
 <p align="center">
@@ -20,9 +20,9 @@
   <a href="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml">
     <img alt="Сборка" src="https://github.com/Cryptoteep/smtu-schedule-android/actions/workflows/android.yml/badge.svg"></a>
   <img alt="Android 5.0+" src="https://img.shields.io/badge/Android-5.0%2B-3DDC84">
-  <img alt="Размер APK" src="https://img.shields.io/badge/APK-61%20%D0%9A%D0%91-1A3E8C">
+  <img alt="Размер APK" src="https://img.shields.io/badge/APK-89%20%D0%9A%D0%91-1A3E8C">
   <img alt="Зависимостей нет" src="https://img.shields.io/badge/%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen">
-  <img alt="Тестов 50" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-50-brightgreen">
+  <img alt="Тестов 68" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-68-brightgreen">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
@@ -65,18 +65,34 @@
 - **Офлайн.** Каждая загрузка сливается с кэшем: приложение стартует мгновенно
   и показывает расписание без сети, а пары, которые университет позже убрал со
   страницы, остаются в истории.
+- **Три виджета на домашний экран:** кольцо обратного отсчёта 1×1, текущая пара
+  2×1 с аудиторией и расписание на день 3×2. Обновляются сами и открывают
+  приложение по тапу; ставятся из меню «⋮ → Виджет на домашний экран».
+- **Планы корпусов.** У занятия в корпусе А, Б или У — официальный поэтажный
+  план: скачивается один раз, дальше открывается офлайн, этажи листаются
+  стрелками, масштаб щипком.
 - **Работает под VPN.** Сайт вуза не пускает часть зарубежных адресов — тогда
   приложение берёт расписание из резервного среза на GitHub и говорит об этом.
+  Оба источника запрашиваются одновременно, так что расписание появляется за
+  секунды, а не после минуты ожидания.
+- **Говорит о новой версии** — раз в сутки и не больше трёх раз; ставить или нет,
+  решает человек.
 
 <p align="center">
   <img src="docs/screenshot-dark-week.png" width="30%" alt="Тёмная тема, неделя">
   <img src="docs/screenshot-dark-day.png" width="30%" alt="Тёмная тема, день">
 </p>
 
+<p align="center">
+  <img src="docs/screenshot-widgets.png" width="62%" alt="Три виджета на домашнем экране">
+</p>
+
 ## Приватность
 
-Приложение ходит **только** на `www.smtu.ru` — за расписанием, при запуске и по
-кнопке ⟳. Ни аналитики, ни рекламы, ни своих серверов, ни аккаунтов. Выбранная
+Приложение ходит на `www.smtu.ru` — за расписанием, при запуске и по кнопке ⟳ —
+и на страницы этого же проекта на GitHub: за резервной копией расписания, когда
+сайт вуза недоступен, и за номером последней версии. Планы корпусов скачиваются
+с `isu.smtu.ru`, когда их открывают. Ни аналитики, ни рекламы, ни своих серверов, ни аккаунтов. Выбранная
 группа и кэш лежат в приватной папке приложения на телефоне. Код открыт
 целиком, APK собирается из него же в GitHub Actions.
 
@@ -146,13 +162,22 @@ app/src/main/java/com/korabel/schedule/
   ScheduleParser.java   парсер страниц smtu.ru (таблица + карточки как запасной путь)
   WeekParity.java       восстановление цикла верхняя/нижняя по данным
   Schedule.java         запросы: день, неделя, «что сейчас», поиск, слияние с кэшем
-  Smtu.java             сеть и кэш — единственный класс, знающий про Android Context
+  Mirror.java           разбор резервного среза на GitHub Pages
+  Smtu.java             сеть и кэш: гонка «сайт против копии», единый вход в Android
+  Now.java              «что сейчас»: идёт пара, перемена, следующий учебный день
+  Version.java          сравнение номеров версий
+  Updates.java          проверка обновлений по latest.json
+  Maps.java             поэтажные планы корпусов (PdfRenderer, зум щипком)
+  Widgets.java          перерисовка виджетов и самозаводящийся будильник
+  TimerWidget/NowWidget/AgendaWidget.java   три виджета
+  WidgetTick/SystemEvents.java              будильник и BOOT/TIME_SET
   Ui.java               палитра (светлая/тёмная) и построители вью
   MainActivity.java     весь экран и диалоги
-app/src/test/java/…                50 JVM-тестов
+app/src/test/java/…                68 JVM-тестов
 app/src/test/resources/fixtures/   реальные страницы smtu.ru, на которых они гоняются
 
 docs/                 страница установки и политика конфиденциальности (GitHub Pages)
+docs/latest.json      номер последней версии — по нему приложение узнаёт об обновлении
 docs/app/             веб-версия: parser.js — общий парсер, app.js — приложение
 docs/data/            расписания в JSON, их обновляет workflow `data`
 tools/build-data.mjs  сборщик этих данных (запускается в GitHub Actions)
@@ -167,7 +192,7 @@ tools/build-data.mjs  сборщик этих данных (запускаетс
 ./gradlew test
 ```
 
-50 тестов гоняются **на настоящих страницах** сайта (осенний семестр
+68 тестов гоняются **на настоящих страницах** сайта (осенний семестр
 2026/2027), сохранённых в `app/src/test/resources/fixtures/`. Проверяется, среди
 прочего:
 
@@ -180,7 +205,10 @@ tools/build-data.mjs  сборщик этих данных (запускаетс
 - карточный запасной разбор даёт тот же результат, что и таблица;
 - переставленные колонки не ломают разбор, обрезанная страница не роняет парсер;
 - цикл чётности восстанавливается из данных и переживает одну ошибочную строку;
-- арифметика дат совпадает с `GregorianCalendar` на 11 лет вперёд.
+- арифметика дат совпадает с `GregorianCalendar` на 11 лет вперёд;
+- состояние «что сейчас» отвечает правильно на идущей паре, на перемене, до
+  первой пары и после последней — на этом же расчёте живут все три виджета;
+- «2.10» считается новее «2.9», а строка вроде «2.5-beta» не принимается за версию.
 
 Если университет поменяет вёрстку, тесты упадут раньше, чем это заметит
 пользователь.
@@ -245,7 +273,11 @@ Android спросит подтверждение.
 MIT — см. [LICENSE](LICENSE). Приложение не связано с СПбГМТУ; все данные
 расписания принадлежат университету.
 
-Основано на [первой версии](https://gitlab.com/trigger337/smtu-schedule-android-app).
+Основано на [первой версии](https://gitlab.com/trigger337/smtu-schedule-android-app)
+и продолжает переглядываться с ней: виджеты, поэтажные планы корпусов и проверка
+обновлений — идеи оттуда, переписанные под здешнюю модель данных. Спасибо
+[trigger337](https://gitlab.com/trigger337).
+
 История изменений — в [CHANGELOG.md](CHANGELOG.md).
 
 ---
@@ -254,13 +286,17 @@ MIT — см. [LICENSE](LICENSE). Приложение не связано с С
 
 Unofficial schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint Petersburg
 State Marine Technical University). Pure Java, zero third-party libraries (no
-AndroidX), all views built in code; the signed release APK is 61 KB.
+AndroidX), all views built in code; the signed release APK is 89 KB.
 
 **Features.** Pick your group once from all 449; week and day views with swipe
 navigation; the lesson happening now is highlighted; a teacher's full schedule
 opens in place, across all their groups; search over subject, teacher, room,
 type and group; add a lesson to the phone's calendar or share a day as text;
-dark theme; fully offline after the first fetch.
+three home-screen widgets (a 1x1 countdown ring, a 2x1 current-lesson card, a
+3x2 day agenda); official floor plans for buildings A, B and U; dark theme;
+fully offline after the first fetch. When the university's server refuses the
+phone's exit IP (common on a VPN), the app falls back to a snapshot published on
+this project's own GitHub Pages and says so.
 
 **How it works.** The site has no API, so the app parses its server-rendered
 pages. It reads the **table** view rather than the cards: the table is the only

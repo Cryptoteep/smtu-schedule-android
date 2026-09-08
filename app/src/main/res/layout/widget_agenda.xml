@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×3: что идёт сейчас и что дальше в этот учебный день. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wa_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/wa_header"
+            android:text="СЕЙЧАС"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_lesson" />
+
+        <TextView
+            android:id="@+id/wa_group"
+            android:text="12826-11"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_sub" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/wa_subject"
+            android:text="Начертательная геометрия"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/w_text" />
+
+    <TextView
+        android:id="@+id/wa_meta"
+            android:text="11:50–13:20 · 167 · осталось 42 мин"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="10sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@color/w_sub" />
+
+    <ProgressBar
+        android:id="@+id/wa_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="4dp"
+        android:progressDrawable="@drawable/bar_lesson"
+        android:max="100"
+        android:progress="47" />
+
+    <TextView
+        android:id="@+id/wa_next_header"
+            android:text="ДАЛЕЕ"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:textColor="@color/w_sub" />
+
+    <LinearLayout
+        android:id="@+id/wa_row1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+
+        <TextView
+            android:id="@+id/wa_r1_time"
+            android:text="14:00"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:textColor="@color/w_lesson" />
+
+        <TextView
+            android:id="@+id/wa_r1_subject"
+            android:text="Физическая культура"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_text" />
+
+        <TextView
+            android:id="@+id/wa_r1_room"
+            android:text="Спортзал"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:textColor="@color/w_sub" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wa_row2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+
+        <TextView
+            android:id="@+id/wa_r2_time"
+            android:text="15:40"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:textColor="@color/w_lesson" />
+
+        <TextView
+            android:id="@+id/wa_r2_subject"
+            android:text="Информатика"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_text" />
+
+        <TextView
+            android:id="@+id/wa_r2_room"
+            android:text="415"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:textColor="@color/w_sub" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wa_row3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+
+        <TextView
+            android:id="@+id/wa_r3_time"
+            android:text="17:20"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:textColor="@color/w_lesson" />
+
+        <TextView
+            android:id="@+id/wa_r3_subject"
+            android:text="Информатика"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_text" />
+
+        <TextView
+            android:id="@+id/wa_r3_room"
+            android:text="415"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:textColor="@color/w_sub" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/wa_row4"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="3dp">
+
+        <TextView
+            android:id="@+id/wa_r4_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:textColor="@color/w_lesson" />
+
+        <TextView
+            android:id="@+id/wa_r4_subject"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/w_text" />
+
+        <TextView
+            android:id="@+id/wa_r4_room"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:textColor="@color/w_sub" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/wa_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textSize="11sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:visibility="gone"
+        android:textColor="@color/w_sub" />
+</LinearLayout>

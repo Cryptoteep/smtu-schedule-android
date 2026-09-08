@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1A3E8C</color>
+
+    <!-- Виджеты: единственное место, где палитра приложения нужна в XML —
+         RemoteViews рисует система, а не наш код (см. Ui.java). -->
+    <color name="w_bg">#FFFFFFFF</color>
+    <color name="w_text">#FF1B1B1F</color>
+    <color name="w_sub">#FF6B7280</color>
+    <color name="w_lesson">#FF2E4FA8</color>
+    <color name="w_break">#FFB4700C</color>
+    <color name="w_track">#22000000</color>
 </resources>

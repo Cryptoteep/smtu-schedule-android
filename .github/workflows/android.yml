@@ -29,6 +29,13 @@ jobs:
           node --check docs/app/sw.js
           python3 -c "import json; json.load(open('docs/app/manifest.webmanifest'))"
 
+      - name: Update feed matches the app version
+        run: |
+          app=$(sed -n 's/.*versionName "\([^"]*\)".*/\1/p' app/build.gradle)
+          feed=$(python3 -c "import json;print(json.load(open('docs/latest.json'))['version'])")
+          echo "build.gradle=$app docs/latest.json=$feed"
+          test "$app" = "$feed"
+
       - name: Unit tests
         run: ./gradlew test --no-daemon
 

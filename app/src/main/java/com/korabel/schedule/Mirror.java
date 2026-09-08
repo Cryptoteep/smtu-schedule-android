@@ -23,8 +23,10 @@ import java.util.List;
  */
 public final class Mirror {
 
+    /** Страница самого проекта — там же живёт веб-версия. */
+    public static final String SITE = "https://cryptoteep.github.io/smtu-schedule-android";
     /** Где лежит срез: это страница самого проекта, не сторонний сервер. */
-    public static final String BASE = "https://cryptoteep.github.io/smtu-schedule-android/data";
+    public static final String BASE = SITE + "/data";
 
     private Mirror() { }
 

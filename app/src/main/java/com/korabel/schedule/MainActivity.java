@@ -101,6 +101,10 @@ public final class MainActivity extends Activity {
 
         if (groupId == null) showGroupPicker(true);
         else load();
+
+        Updates.onLaunch(this, (version, newer) -> {
+            if (!isFinishing() && newer) toast("Вышла версия " + version + " — «⋮ → О приложении»");
+        });
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -172,6 +176,8 @@ public final class MainActivity extends Activity {
                 }
             }
             render();
+            // виджеты рисуются из того же кэша — обновим их, раз данные свежие
+            if (!teacher && result != null && !result.isEmpty()) Widgets.poke(this);
             if (error != null) toast(error);
         });
     }
@@ -470,37 +476,18 @@ public final class MainActivity extends Activity {
      */
     private void updateNowBar() {
         if (tvNow == null) return;
-        long day = Dates.today();
-        int seconds = Dates.nowSeconds();
-        int minutes = seconds / 60;
-
-        Lesson running = schedule.runningAt(day, minutes);
-        if (running != null) {
-            tvNow.setText("Идёт: " + running.subject + " · осталось "
-                    + countdown(running.endMinutes() * 60 - seconds));
-            tvNow.setVisibility(View.VISIBLE);
+        Now.State st = Now.compute(schedule, Dates.today(), Dates.nowSeconds());
+        if (st.kind == Now.ONGOING) {
+            tvNow.setText("Идёт: " + st.current.subject + " · осталось "
+                    + Now.hms(st.remainSec));
+        } else if (st.kind == Now.BREAK) {
+            tvNow.setText("Следующая: " + st.next.subject + " через "
+                    + Now.hms(st.remainSec) + " · в " + Now.startOf(st.next.time));
+        } else {
+            tvNow.setVisibility(View.GONE);
             return;
         }
-        Lesson next = schedule.nextAfter(day, minutes);
-        if (next != null) {
-            tvNow.setText("Следующая: " + next.subject + " через "
-                    + countdown(next.startMinutes() * 60 - seconds)
-                    + " · в " + next.time.split("-")[0].trim());
-            tvNow.setVisibility(View.VISIBLE);
-            return;
-        }
-        tvNow.setVisibility(View.GONE);
-    }
-
-    /**
-     * Обратный отсчёт: "23:45", а при часах "4:51:23".
-     * Секунды всегда на месте — видно, что счётчик идёт, а не завис.
-     */
-    private static String countdown(int sec) {
-        if (sec <= 0) return "0:00";
-        int h = sec / 3600, m = sec % 3600 / 60, s = sec % 60;
-        return h > 0 ? String.format(Locale.ROOT, "%d:%02d:%02d", h, m, s)
-                     : String.format(Locale.ROOT, "%d:%02d", m, s);
+        tvNow.setVisibility(View.VISIBLE);
     }
 
     private void updateStatus() {
@@ -772,6 +759,8 @@ public final class MainActivity extends Activity {
          .append(lesson.time.replace(" - ", " – ")).append('\n');
         if (!lesson.type.isEmpty()) m.append(lesson.type);
         if (!lesson.room.isEmpty()) m.append(m.length() > 0 ? " · " : "").append(lesson.room);
+        Maps.Building building = Maps.ofRoom(lesson.room);
+        if (building != null && building.hasPlan()) m.append("\n🗺 План корпуса — в «Ещё»");
         m.append('\n').append(lesson.upper ? "Верхняя" : "Нижняя").append(" неделя");
         if (!lesson.group.isEmpty()) m.append(" · группа ").append(lesson.group);
         if (!lesson.teacher.isEmpty()) m.append("\n\nПреподаватель: ").append(lesson.teacher);
@@ -800,17 +789,25 @@ public final class MainActivity extends Activity {
     }
 
     private void showLessonExtras(Lesson lesson, long day, AlertDialog parent) {
+        final Maps.Building building = Maps.ofRoom(lesson.room);
         List<String> actions = new ArrayList<>();
+        // план корпуса — первым: чаще всего из этого меню нужен именно он
+        if (building != null) actions.add("🗺  " + Maps.label(building, lesson.room));
         actions.add("Все занятия по предмету");
         actions.add("Добавить в календарь");
         actions.add("Поделиться");
         if (!lesson.group.isEmpty() && teacherId != null) actions.add("Расписание группы " + lesson.group);
 
+        final int shift = building == null ? 0 : 1;
         new AlertDialog.Builder(this)
                 .setTitle(lesson.subject)
                 .setItems(actions.toArray(new String[0]), (d, which) -> {
                     parent.dismiss();       // the action replaces what is on screen
-                    switch (which) {
+                    if (building != null && which == 0) {
+                        Maps.show(this, building, lesson.room);
+                        return;
+                    }
+                    switch (which - shift) {
                         case 0:
                             showLessonList("Предмет: " + lesson.subject,
                                     schedule.ofSubject(lesson.subject), false);
@@ -925,6 +922,7 @@ public final class MainActivity extends Activity {
         items.add("Поделиться " + (dayMode ? "днём" : "неделей"));
         items.add("Обновить с smtu.ru");
         items.add("Очистить кэш и загрузить заново");
+        items.add("Виджет на домашний экран");
         items.add("Открыть сайт расписания");
         items.add("О приложении");
 
@@ -938,10 +936,38 @@ public final class MainActivity extends Activity {
                         case 2: shareCurrentView(); break;
                         case 3: refresh(); break;
                         case 4: clearCache(); break;
-                        case 5: openSite(); break;
+                        case 5: showWidgetPicker(); break;
+                        case 6: openSite(); break;
                         default: showAbout();
                     }
                 })
+                .show();
+    }
+
+    /**
+     * Виджеты обычно ищут долгим тапом по домашнему экрану и не находят.
+     * С Android 8 лаунчер умеет ставить виджет по просьбе приложения — здесь
+     * это одна кнопка; на старых версиях остаётся подсказка.
+     */
+    private void showWidgetPicker() {
+        final Class<?>[] providers = {TimerWidget.class, NowWidget.class, AgendaWidget.class};
+        String[] items = {
+                "Кольцо-таймер 1×1 — сколько осталось",
+                "Текущая пара 2×1 — предмет и аудитория",
+                "Расписание на день 3×2 — что дальше",
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Виджет на домашний экран")
+                .setItems(items, (d, which) -> {
+                    if (groupId == null) {
+                        toast("Сначала выберите группу");
+                        return;
+                    }
+                    if (!Widgets.pin(this, providers[which]))
+                        toast("Лаунчер не умеет добавлять виджеты сам — "
+                                + "долгий тап по экрану → «Виджеты» → «Расписание СПбГМТУ»");
+                })
+                .setNegativeButton("Закрыть", null)
                 .show();
     }
 
@@ -958,20 +984,54 @@ public final class MainActivity extends Activity {
         String parity = schedule.parity().isDerived()
                 ? "Чётность недель вычислена по датам занятий с сайта."
                 : "Чётность недель — по встроенному календарю (расписание ещё не загружено).";
-        new AlertDialog.Builder(this)
+        String latest = Updates.latestKnown(this);
+        String update = latest == null ? "Обновления ещё не проверялись."
+                : Updates.isNewer(latest, BuildConfig.VERSION_NAME)
+                        ? "Вышла версия " + latest + " — нажмите «Обновление»."
+                        : "Установлена последняя версия.";
+
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Расписание СПбГМТУ " + BuildConfig.VERSION_NAME)
-                .setMessage("Неофициальный просмотрщик расписания СПбГМТУ.\n\n"
-                        + "Данные берутся напрямую с www.smtu.ru — официального сайта "
-                        + "университета — при запуске и по кнопке ⟳, затем работают "
-                        + "офлайн из кэша на устройстве.\n\n"
+                .setMessage("Неофициальный просмотрщик. Сборка от "
+                        + BuildConfig.BUILD_DATE + ".\n\n"
+                        + "Данные — с www.smtu.ru. Если сайт не отвечает (так бывает под "
+                        + "VPN), приложение берёт тот же семестр из резервной копии на "
+                        + "GitHub и помечает это внизу экрана.\n\n"
                         + parity + "\n\n"
-                        + "Свайп влево/вправо — следующий день или неделя. "
-                        + "Тап по названию группы — смена группы. "
-                        + "Тап по занятию — детали, преподаватель, экспорт в календарь.\n\n"
-                        + "Приложение не связано с университетом; все данные расписания "
-                        + "принадлежат СПбГМТУ.")
+                        + "Свайп — день или неделя, тап по занятию — детали, преподаватель "
+                        + "и план корпуса. Виджеты выносятся из меню ⋮.\n\n"
+                        + update + "\n\n"
+                        + "Не связано с университетом; данные принадлежат СПбГМТУ.")
                 .setPositiveButton("Закрыть", null)
-                .show();
+                .setNeutralButton("Обновление", null)
+                .setNegativeButton("Исходники", null)
+                .create();
+        dialog.show();
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> checkUpdates());
+        dialog.getButton(DialogInterface.BUTTON_NEGATIVE)
+              .setOnClickListener(v -> openUrl(Updates.REPO));
+    }
+
+    /** Проверка обновлений по кнопке: результат сообщается всегда. */
+    private void checkUpdates() {
+        toast("Проверяю…");
+        Updates.checkNow(this, (version, newer) -> {
+            if (isFinishing()) return;
+            if (version == null) {
+                toast("Не удалось проверить обновления");
+            } else if (newer) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Есть версия " + version)
+                        .setMessage("У вас " + BuildConfig.VERSION_NAME + ". "
+                                + "Новый APK лежит на странице релизов — скачайте и "
+                                + "установите поверх, данные и выбранная группа сохранятся.")
+                        .setPositiveButton("Открыть", (d, w) -> openUrl(Updates.RELEASES))
+                        .setNegativeButton("Позже", null)
+                        .show();
+            } else {
+                toast("Установлена последняя версия");
+            }
+        });
     }
 
     // ----------------------------------------------------------- group picker
@@ -990,7 +1050,7 @@ public final class MainActivity extends Activity {
         status.setTextSize(12);
         status.setTextColor(ui.muted);
         status.setPadding(0, dp(8), 0, 0);
-        status.setText("Загружаю список групп с smtu.ru…");
+        status.setText("Загружаю список групп…");
         box.addView(status, Ui.lp(-1, -2));
 
         final List<Group> all = new ArrayList<>();
@@ -1001,13 +1061,18 @@ public final class MainActivity extends Activity {
         listView.setAdapter(adapter);
         box.addView(listView, Ui.lp(-1, dp(320)));
 
+        // Закрыть можно всегда, в том числе на первом запуске: если сеть плохая,
+        // человек должен уметь выйти из этого окна, а не смотреть в пустой список.
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle("Ваша группа")
                 .setView(box)
-                .setNeutralButton("Повторить", null);
-        if (!firstRun) builder.setNegativeButton("Отмена", null);
+                .setNeutralButton("Повторить", null)
+                .setNegativeButton(firstRun ? "Позже" : "Отмена", null);
         final AlertDialog dialog = builder.create();
-        dialog.setCanceledOnTouchOutside(!firstRun);
+        dialog.setCanceledOnTouchOutside(true);
+        if (firstRun) dialog.setOnDismissListener(d -> {
+            if (groupId == null) toast("Группу можно выбрать, нажав на её название в шапке");
+        });
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
@@ -1030,7 +1095,7 @@ public final class MainActivity extends Activity {
         });
 
         final Runnable loadGroups = () -> {
-            status.setText("Загружаю список групп с smtu.ru…");
+            status.setText("Загружаю список групп…");
             Smtu.groups(this, (groups, error) -> {
                 if (isFinishing() || !dialog.isShowing()) return;
                 if (groups.isEmpty()) {
@@ -1156,9 +1221,12 @@ public final class MainActivity extends Activity {
     }
 
     private void openSite() {
-        String url = Smtu.HOST + (teacherId != null
+        openUrl(Smtu.HOST + (teacherId != null
                 ? "/ru/viewschedule_new/teacher/" + teacherId + "/"
-                : "/ru/viewschedule_new/" + groupId + "/");
+                : "/ru/viewschedule_new/" + groupId + "/"));
+    }
+
+    private void openUrl(String url) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
         } catch (ActivityNotFoundException e) {
