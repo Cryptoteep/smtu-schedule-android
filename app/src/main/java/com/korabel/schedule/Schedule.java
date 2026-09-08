@@ -22,15 +22,21 @@ public final class Schedule {
     private final WeekParity parity;
     private final String title;      // group name or teacher name, as printed by the site
     private final long fetchedAt;    // millis, 0 when unknown
+    private final boolean mirrored;  // взято из резервного среза, а не с сайта
     private final long firstDay, lastDay;
 
     public Schedule(List<Lesson> lessons, String title, long fetchedAt) {
+        this(lessons, title, fetchedAt, false);
+    }
+
+    public Schedule(List<Lesson> lessons, String title, long fetchedAt, boolean mirrored) {
         List<Lesson> copy = new ArrayList<>(lessons);
         Collections.sort(copy);
         this.lessons = Collections.unmodifiableList(copy);
         this.parity = WeekParity.derive(copy);
         this.title = title == null ? "" : title;
         this.fetchedAt = fetchedAt;
+        this.mirrored = mirrored;
 
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         for (Lesson l : copy)
@@ -48,6 +54,8 @@ public final class Schedule {
     public WeekParity parity()     { return parity; }
     public String title()          { return title; }
     public long fetchedAt()        { return fetchedAt; }
+    /** Данные пришли из резервного среза (сайт был недоступен). */
+    public boolean isMirrored()    { return mirrored; }
     public boolean isEmpty()       { return lessons.isEmpty(); }
     public int size()              { return lessons.size(); }
 
@@ -155,6 +163,7 @@ public final class Schedule {
         Set<String> freshKeys = new LinkedHashSet<>();
         for (Lesson l : fresh.lessons) freshKeys.add(l.key());
         for (Lesson l : lessons) if (!freshKeys.contains(l.key())) out.add(l);
-        return new Schedule(out, fresh.title.isEmpty() ? title : fresh.title, fresh.fetchedAt);
+        return new Schedule(out, fresh.title.isEmpty() ? title : fresh.title,
+                fresh.fetchedAt, fresh.mirrored);
     }
 }

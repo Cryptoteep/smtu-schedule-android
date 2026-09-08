@@ -524,6 +524,8 @@ public final class MainActivity extends Activity {
             s.append(" · обновлено ").append(when).append(", ")
              .append(String.format(Locale.ROOT, "%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)));
         }
+        if (schedule.isMirrored())
+            s.append(" · сайт недоступен, данные из резервной копии");
         if (schedule.parity().isDerived() && schedule.parity().agreement() < 0.9)
             s.append(" · чётность недель неточная");
         tvStatus.setText(s);

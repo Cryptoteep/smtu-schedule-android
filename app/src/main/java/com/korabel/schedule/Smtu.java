@@ -79,6 +79,16 @@ public final class Smtu {
                 if (fresh.isEmpty()) throw new IOException("список групп пуст");
                 writeGroups(app, fresh);
                 post(cb, fresh, null);
+                return;
+            } catch (Exception ignored) {
+                // сайт недоступен (частый случай — VPN с зарубежным выходом):
+                // берём тот же список из среза, который собирает GitHub
+            }
+            try {
+                List<Group> fresh = Mirror.parseGroups(httpGet(Mirror.groupsUrl()));
+                if (fresh.isEmpty()) throw new IOException("список групп пуст");
+                writeGroups(app, fresh);
+                post(cb, fresh, null);
             } catch (Exception e) {
                 if (cached.isEmpty()) post(cb, cached, message(e));
             }
@@ -116,12 +126,36 @@ public final class Smtu {
                 writeSchedule(app, teacher, id, merged);
                 if (teacher) trimTeacherCaches(app);
                 post(cb, merged, null);
-            } catch (Exception e) {
-                post(cb, cached, cached.isEmpty()
-                        ? "Не удалось загрузить: " + message(e)
-                        : "Нет связи с smtu.ru — показано сохранённое");
+            } catch (Exception siteError) {
+                fromMirror(app, teacher, id, cached, cb, siteError);
             }
         });
+    }
+
+    /**
+     * Запасной путь: тот же семестр, но из среза на GitHub Pages.
+     *
+     * Срез собирается со страниц smtu.ru несколько раз в сутки, поэтому он
+     * может отставать на несколько часов — об этом честно сообщается в ответе,
+     * а метка времени берётся из заголовка Last-Modified.
+     */
+    private static void fromMirror(Context app, boolean teacher, String id,
+                                   Schedule cached, Callback<Schedule> cb, Exception siteError) {
+        try {
+            Response res = getWithHeaders(Mirror.scheduleUrl(teacher, id));
+            List<Lesson> lessons = Mirror.parseSchedule(res.body);
+            if (lessons.isEmpty()) throw new IOException("в срезе нет этого расписания");
+            String title = Mirror.parseTitle(res.body);
+            long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
+            Schedule merged = cached.mergedWith(new Schedule(lessons, title, at, true));
+            writeSchedule(app, teacher, id, merged);
+            if (teacher) trimTeacherCaches(app);
+            post(cb, merged, null);
+        } catch (Exception mirrorError) {
+            post(cb, cached, cached.isEmpty()
+                    ? "Не удалось загрузить: " + message(siteError)
+                    : "Нет связи с smtu.ru — показано сохранённое");
+        }
     }
 
     /** Drop every cached schedule (the group list survives). */
@@ -136,8 +170,23 @@ public final class Smtu {
 
     // -------------------------------------------------------------------- net
 
+    /** Ответ вместе с временем последнего изменения (0, если сервер его не прислал). */
+    static final class Response {
+        final String body;
+        final long lastModified;
+
+        Response(String body, long lastModified) {
+            this.body = body;
+            this.lastModified = lastModified;
+        }
+    }
+
     /** GET a page as UTF-8 text, following redirects, with one retry. */
     static String httpGet(String url) throws IOException {
+        return getWithHeaders(url).body;
+    }
+
+    static Response getWithHeaders(String url) throws IOException {
         IOException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
@@ -149,7 +198,7 @@ public final class Smtu {
         throw last;
     }
 
-    private static String getOnce(String url) throws IOException {
+    private static Response getOnce(String url) throws IOException {
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL(url).openConnection();
@@ -176,7 +225,8 @@ public final class Smtu {
                 buf.write(chunk, 0, n);
             }
             in.close();
-            return new String(buf.toByteArray(), StandardCharsets.UTF_8);
+            return new Response(new String(buf.toByteArray(), StandardCharsets.UTF_8),
+                    c.getHeaderFieldDate("Last-Modified", 0));
         } finally {
             if (c != null) c.disconnect();
         }

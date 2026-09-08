@@ -23,8 +23,8 @@ android {
         applicationId "com.korabel.schedule"
         minSdk 21
         targetSdk 36
-        versionCode 5
-        versionName "2.3"
+        versionCode 6
+        versionName "2.4"
         resourceConfigurations += ["ru"]
     }
 
@@ -102,4 +102,6 @@ dependencies {
     // keeps the APK at a few dozen kilobytes.
     // Tests run on the JVM against the pure-Java parser and date logic.
     testImplementation 'junit:junit:4.13.2'
+    // org.json на устройстве даёт платформа; для JVM-тестов нужна та же реализация
+    testImplementation 'org.json:json:20240303'
 }
