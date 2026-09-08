@@ -11,8 +11,18 @@
  */
 'use strict';
 
-const PROXY = 'https://schedule-proxy.example/smtu-api';
+/*
+ * Зеркала прокси. У части пользователей один адрес может не открываться
+ * (блокировщик в браузере, VPN, капризы провайдера), поэтому приложение
+ * перебирает их по очереди и запоминает тот, который ответил.
+ */
+const PROXIES = [
+  'https://schedule-proxy.example/smtu-api',
+  'https://schedule-proxy.example/smtu-api',
+  'https://schedule-proxy.example/smtu-api'
+];
 const STORE = 'smtu.';
+const FETCH_TIMEOUT = 20000;
 
 const DAY_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -187,10 +197,38 @@ function isUpper(parity, ed) {
 
 // ------------------------------------------------------------------ сеть
 
+async function fetchOnce(base, path) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), FETCH_TIMEOUT);
+  try {
+    const res = await fetch(base + path, { cache: 'no-cache', signal: stop.signal });
+    if (!res.ok) throw new Error('ответ ' + res.status);
+    const text = await res.text();
+    if (text.length < 500) throw new Error('пустой ответ');
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Пробуем зеркала по очереди, начиная с того, который работал в прошлый раз. */
 async function fetchPage(path) {
-  const res = await fetch(PROXY + path, { cache: 'no-cache' });
-  if (!res.ok) throw new Error('сайт ответил ' + res.status);
-  return await res.text();
+  const preferred = localStorage.getItem(STORE + 'proxy');
+  const order = preferred ? [preferred, ...PROXIES.filter(p => p !== preferred)] : PROXIES.slice();
+  const problems = [];
+  for (const base of order) {
+    try {
+      const text = await fetchOnce(base, path);
+      localStorage.setItem(STORE + 'proxy', base);
+      return text;
+    } catch (e) {
+      const why = e.name === 'AbortError' ? 'долго не отвечает'
+                : e.name === 'TypeError' ? 'запрос не прошёл'
+                : e.message;
+      problems.push(new URL(base).hostname + ' — ' + why);
+    }
+  }
+  throw new Error(problems.join('; '));
 }
 
 // --------------------------------------------------------------- состояние
@@ -469,19 +507,28 @@ async function openPicker() {
   const dlg = $('picker');
   const list = $('groups');
   const status = $('pickerStatus');
+  const retry = $('pickerRetry');
   list.innerHTML = '';
   status.textContent = 'Загружаю список групп…';
+  retry.hidden = true;
   dlg.showModal();
 
   let groups = [];
+  const cached = localStorage.getItem(STORE + 'groups');
+  if (cached) { try { groups = JSON.parse(cached); show(groups); } catch (e) { groups = []; } }
+
   try {
-    const cached = localStorage.getItem(STORE + 'groups');
-    if (cached) { groups = JSON.parse(cached); show(groups); }
     groups = parseGroups(await fetchPage('/ru/listschedule/'));
     localStorage.setItem(STORE + 'groups', JSON.stringify(groups));
     show(groups);
   } catch (e) {
-    if (!groups.length) status.textContent = 'Нет связи с сайтом университета. Проверьте интернет и откройте список снова.';
+    if (!groups.length) {
+      status.textContent = 'Не удалось получить список групп: ' + e.message +
+        '.
+Если включён VPN или блокировщик рекламы — выключите их и нажмите «Повторить».';
+      retry.hidden = false;
+      retry.onclick = () => { dlg.close(); openPicker(); };
+    }
   }
 
   function show(all) {

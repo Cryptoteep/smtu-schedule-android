@@ -152,10 +152,13 @@
   <div class="dlg">
     <h2>Ваша группа</h2>
     <input id="search" type="search" inputmode="numeric" placeholder="Группа, например 12826-11" autocomplete="off">
-    <p class="dim" id="pickerStatus" style="margin:8px 0 0">Загружаю список групп…</p>
+    <p class="dim" id="pickerStatus" style="margin:8px 0 0; white-space:pre-line">Загружаю список групп…</p>
     <div class="list" id="groups"></div>
   </div>
-  <div class="dlg-actions"><button id="pickerClose">Закрыть</button></div>
+  <div class="dlg-actions">
+    <button id="pickerRetry" hidden>Повторить</button>
+    <button id="pickerClose">Закрыть</button>
+  </div>
 </dialog>
 
 <dialog id="lesson">

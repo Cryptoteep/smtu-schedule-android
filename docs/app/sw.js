@@ -2,7 +2,7 @@
  * Кэш оболочки приложения: страница открывается и без сети, а расписание
  * приходит из localStorage (его пишет app.js).
  */
-const CACHE = 'smtu-shell-v1';
+const CACHE = 'smtu-shell-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
