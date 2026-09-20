@@ -22,6 +22,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # по умолчанию действие ставит пакет 'tools', которого в репозитории
+          # Google больше нет, и падает; ставим ровно то, чем собираемся собирать
+          packages: 'platform-tools platforms;android-36 build-tools;36.1.0'
 
       - name: Web app syntax
         run: |

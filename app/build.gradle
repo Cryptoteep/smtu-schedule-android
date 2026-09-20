@@ -18,6 +18,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace 'com.korabel.schedule'
     compileSdk 36
+    // явная версия — чтобы локальная сборка и CI собирали одним и тем же
+    buildToolsVersion '36.1.0'
 
     defaultConfig {
         applicationId "com.korabel.schedule"
