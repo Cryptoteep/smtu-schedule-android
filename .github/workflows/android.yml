@@ -31,7 +31,13 @@ jobs:
         run: |
           node --check docs/app/app.js
           node --check docs/app/sw.js
+          node --check docs/app/parser.js
+          node --check tools/build-data.mjs
           python3 -c "import json; json.load(open('docs/app/manifest.webmanifest'))"
+
+      # сторож, который не даёт опубликовать пустой срез, когда сайт переделали
+      - name: Snapshot guard
+        run: node --test tools/*.test.mjs
 
       - name: Update feed matches the app version
         run: |

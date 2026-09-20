@@ -19,8 +19,11 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
+import { verdict } from './snapshot-check.mjs';
 
-const HOST = 'https://www.smtu.ru';
+// адрес можно подменить — так проверка «а упадём ли мы на сломанной вёрстке»
+// гоняется на локальной странице, без похода на сайт университета
+const HOST = process.env.SMTU_HOST || 'https://www.smtu.ru';
 const OUT = new URL('../docs/data/', import.meta.url);
 const UA = 'Mozilla/5.0 (Linux; Android 14) Chrome/126.0 Mobile';
 const PAUSE_MS = 250;              // не долбим сайт университета
@@ -121,27 +124,11 @@ await writeFile(new URL('index.json', OUT), JSON.stringify(index));
 const seconds = Math.round((Date.now() - started) / 1000);
 console.log(`готово за ${seconds} с: ${index.groups.length} групп, ${index.teachers.length} преподавателей, ${lessonsTotal} занятий, пустых ${empty}, ошибок ${failed}`);
 
-if (failed > groups.length * 0.2) {
-  console.error('слишком много ошибок — не публикуем такой срез');
-  process.exit(1);
-}
-
-/*
- * Страница может ответить «200 OK» и не содержать при этом ни одного занятия —
- * ровно так и вышло 15.09.2026, когда университет сменил вёрстку: сборщик пять
- * дней подряд бодро коммитил пустые расписания, и никто этого не заметил.
- * Поэтому пустой результат — это ошибка, а не «просто ноль занятий».
- */
-if (!lessonsTotal) {
-  console.error('ни одного занятия на всём сайте — почти наверняка сменилась вёрстка');
-  process.exit(1);
-}
-if (empty > groups.length * 0.5) {
-  console.error(`у ${empty} групп из ${groups.length} расписание пустое — не публикуем такой срез`);
-  process.exit(1);
-}
-if (!anchor) {
-  console.error('на странице нет строки «Сегодня: … неделя» — чётность считать не от чего');
+const stop = verdict({
+  groups: groups.length, lessons: lessonsTotal, empty, failed, anchor
+});
+if (stop) {
+  console.error(stop);
   process.exit(1);
 }
 

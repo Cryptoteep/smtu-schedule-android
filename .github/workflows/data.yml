@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write        # чтобы рассказать о поломке, а не молчать в логах
 
 jobs:
   collect:
@@ -30,6 +31,31 @@ jobs:
 
       - name: Collect schedules
         run: node tools/build-data.mjs
+
+      # Тесты парсера гоняются на сохранённых страницах и смену вёрстки поймать
+      # не могут — копия не меняется вместе с сайтом. Ловит её только обход
+      # живого сайта, поэтому о его провале надо узнать, а не найти через неделю.
+      - name: Заявить о поломке
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Сбор расписания падает — похоже, сайт снова переделали"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body=$(cat <<TEXT
+          Прогон не смог собрать расписание со smtu.ru: $run_url
+
+          Так выглядит смена вёрстки: страницы отвечают 200, ошибок нет, а занятий не находится ни у одной группы. Срез намеренно не опубликован — лучше вчерашние данные, чем пустые.
+
+          Что делать: открыть /ru/viewschedule_new/<id>/, сравнить разметку с docs/app/parser.js и ScheduleParser.java, обновить фикстуры в app/src/test/resources/fixtures/.
+          TEXT
+          )
+          open=$(gh issue list --state open --search "$title in:title" --json number -q '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
 
       - name: Commit if anything changed
         run: |
