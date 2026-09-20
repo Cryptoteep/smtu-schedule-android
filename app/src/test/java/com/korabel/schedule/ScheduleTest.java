@@ -96,25 +96,32 @@ public class ScheduleTest {
         assertTrue(s.search("нет такого предмета").isEmpty());
     }
 
-    @Test public void mergeKeepsHistoryAndPrefersFreshRows() {
-        Lesson old = lesson("Старый предмет", MON_14_SEP);
-        Lesson kept = lesson("Общий предмет", MON_14_SEP);
-        Schedule cached = new Schedule(list(old, kept), "12826-11", 1000);
+    @Test public void aScheduleWithoutDatesStopsAtItsHorizon() {
+        Lesson weekly = new Lesson();
+        weekly.subject = "Физика";
+        weekly.day = "Понедельник";
+        weekly.time = "08:30 - 10:00";
+        weekly.bothWeeks = true;
 
-        Lesson updated = lesson("Общий предмет", MON_14_SEP);
-        updated.room = "999";                                  // same key? no: room is part of it
-        Lesson added = lesson("Новый предмет", MON_14_SEP + 7);
-        Schedule fresh = new Schedule(list(updated, added), "12826-11", 2000);
+        long fetched = Dates.startOfDayMillis(MON_14_SEP, 12 * 60);
+        Schedule s = new Schedule(list(weekly), "12826-11", fetched);
 
-        Schedule merged = cached.mergedWith(fresh);
-        assertEquals("history survives", 4, merged.size());
-        assertTrue(merged.subjects().contains("Старый предмет"));
-        assertTrue(merged.subjects().contains("Новый предмет"));
-        assertEquals("fetch time comes from the fresh copy", 2000, merged.fetchedAt());
+        assertFalse("своя неделя — показываем", s.on(MON_14_SEP).isEmpty());
+        assertFalse("и через месяц тоже", s.on(MON_14_SEP + 28).isEmpty());
+        assertTrue("а через год — нет: столько мы не знаем",
+                s.on(MON_14_SEP + 365).isEmpty());
+        assertFalse(s.inSemester(MON_14_SEP + 365));
+        assertFalse("границы посчитаны, а не взяты из данных", s.hasExactDates());
+        assertEquals(MON_14_SEP, s.firstDay());
+        assertEquals(Dates.NO_DATE, s.nextDayWithLessons(MON_14_SEP + 365, +1));
+    }
 
-        Schedule sameRows = cached.mergedWith(new Schedule(list(kept), "12826-11", 3000));
-        assertEquals("identical rows are not duplicated", 2, sameRows.size());
-        assertEquals(cached.size(), cached.mergedWith(Schedule.EMPTY).size());
+    @Test public void datedScheduleKeepsItsRealBoundaries() {
+        Schedule s = new Schedule(list(lesson("Химия", MON_14_SEP)), "12826-11", 1000);
+        assertTrue(s.hasExactDates());
+        assertEquals(MON_14_SEP, s.firstDay());
+        assertEquals(MON_14_SEP, s.lastDay());
+        assertFalse(s.inSemester(MON_14_SEP + 1));
     }
 
     @Test public void emptyScheduleAnswersEveryQuery() {

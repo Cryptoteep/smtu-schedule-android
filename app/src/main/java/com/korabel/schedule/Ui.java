@@ -90,10 +90,16 @@ public final class Ui {
         return d;
     }
 
-    /** Flat, borderless, tappable text button used across the header. */
-    public TextView iconButton(Context ctx, String glyph, float size) {
+    /**
+     * Flat, borderless, tappable text button used across the header.
+     *
+     * @param description что скажет TalkBack: сам глиф («‹», «⟳») читается как
+     *                    мусор или молчанием, поэтому подпись обязательна
+     */
+    public TextView iconButton(Context ctx, String glyph, float size, String description) {
         TextView b = new TextView(ctx);
         b.setText(glyph);
+        b.setContentDescription(description);
         b.setTextSize(size);
         b.setTextColor(text);
         b.setGravity(Gravity.CENTER);

@@ -222,9 +222,9 @@ public final class MainActivity extends Activity {
         LinearLayout row1 = Ui.row(this);
         header.addView(row1, Ui.lp(-1, -2));
 
-        TextView prev = ui.iconButton(this, "‹", 26);
+        TextView prev = ui.iconButton(this, "‹", 26, "Назад");
         prev.setOnClickListener(v -> shift(-1));
-        TextView next = ui.iconButton(this, "›", 26);
+        TextView next = ui.iconButton(this, "›", 26, "Вперёд");
         next.setOnClickListener(v -> shift(1));
 
         LinearLayout titleBox = Ui.column(this);
@@ -246,9 +246,10 @@ public final class MainActivity extends Activity {
         tvRange.setTextColor(ui.muted);
         titleBox.addView(tvRange);
 
-        row1.addView(prev, Ui.lp(dp(40), dp(44)));
+        // 48dp — минимальная цель касания, которую советует Android
+        row1.addView(prev, Ui.lp(dp(48), dp(48)));
         row1.addView(titleBox, Ui.lp(0, -2, 1f));
-        row1.addView(next, Ui.lp(dp(40), dp(44)));
+        row1.addView(next, Ui.lp(dp(48), dp(48)));
 
         // row 2: mode · parity · today ......... search · refresh · menu
         LinearLayout row2 = Ui.row(this);
@@ -276,17 +277,17 @@ public final class MainActivity extends Activity {
 
         row2.addView(new View(this), Ui.lp(0, 1, 1f));
 
-        TextView search = ui.iconButton(this, "⌕", 18);   // ⌕
+        TextView search = ui.iconButton(this, "⌕", 18, "Поиск по расписанию");
         search.setOnClickListener(v -> showSearch());
-        TextView reload = ui.iconButton(this, "⟳", 18);   // ⟳
+        TextView reload = ui.iconButton(this, "⟳", 18, "Обновить с сайта");
         reload.setOnClickListener(v -> refresh());
-        TextView menu = ui.iconButton(this, "⋮", 18);     // ⋮
+        TextView menu = ui.iconButton(this, "⋮", 18, "Меню");
         menu.setOnClickListener(v -> showMenu());
-        LinearLayout.LayoutParams btn = Ui.lp(dp(36), dp(32));
-        btn.leftMargin = dp(4);
+        LinearLayout.LayoutParams btn = Ui.lp(dp(44), dp(44));
+        btn.leftMargin = dp(2);
         row2.addView(search, btn);
-        row2.addView(reload, Ui.lp(dp(36), dp(32)));
-        row2.addView(menu, Ui.lp(dp(36), dp(32)));
+        row2.addView(reload, Ui.lp(dp(44), dp(44)));
+        row2.addView(menu, Ui.lp(dp(44), dp(44)));
 
         // row 3: Mon..Sun strip (day view only)
         dayStrip = Ui.row(this);
@@ -459,9 +460,7 @@ public final class MainActivity extends Activity {
             return loading ? "Загружаю расписание…"
                     : "Расписание не загружено.\nНажмите ⟳ при подключении к сети.";
         long shown = shownDay();
-        if (!schedule.inSemester(shown))
-            return "Вне семестра.\nРасписание есть с " + Dates.dayMonth(schedule.firstDay())
-                    + " по " + Dates.dayMonthYear(schedule.lastDay()) + ".";
+        if (!schedule.inSemester(shown)) return outsideLabel();
         String empty = dayMode ? "Занятий нет — свободный день." : "На этой неделе занятий нет.";
         long next = schedule.nextDayWithLessons(shown + (dayMode ? 1 : 7), +1);
         return next == Dates.NO_DATE ? empty
@@ -490,6 +489,24 @@ public final class MainActivity extends Activity {
         tvNow.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * Почему на экране пусто, когда открытый день за пределами расписания.
+     *
+     * Точные границы бывают только у старых данных: на нынешней странице дат
+     * нет, и приложение знает лишь «день недели + чётность». Разворачивать это
+     * правило до бесконечности — враньё, поэтому дальше горизонта оно честно
+     * говорит, чем располагает, а не показывает выдуманные пары.
+     */
+    private String outsideLabel() {
+        if (schedule.hasExactDates())
+            return "Вне семестра.\nРасписание есть с " + Dates.dayMonth(schedule.firstDay())
+                    + " по " + Dates.dayMonthYear(schedule.lastDay()) + ".";
+        return "Сюда расписание не достаёт.\nОно загружено "
+                + Dates.dayMonth(Dates.epochDayOf(schedule.fetchedAt()))
+                + " и покрывает по " + Dates.dayMonthYear(schedule.lastDay())
+                + ".\nНажмите ⟳, чтобы взять свежее.";
+    }
+
     private void updateStatus() {
         if (loading) {
             tvStatus.setText("Обновляю с smtu.ru…");
@@ -505,15 +522,18 @@ public final class MainActivity extends Activity {
         if (schedule.fetchedAt() > 0) {
             Calendar c = Calendar.getInstance();
             c.setTimeInMillis(schedule.fetchedAt());
-            long day = Dates.toEpochDay(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1,
-                    c.get(Calendar.DAY_OF_MONTH));
+            long day = Dates.epochDayOf(schedule.fetchedAt());
             String when = day == Dates.today() ? "сегодня" : Dates.dayMonth(day);
             s.append(" · обновлено ").append(when).append(", ")
              .append(String.format(Locale.ROOT, "%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)));
         }
         if (schedule.isMirrored())
             s.append(" · сайт недоступен, данные из резервной копии");
-        if (schedule.parity().isDerived() && schedule.parity().agreement() < 0.9)
+        // сайт пишет чётность прямым текстом; если строки не оказалось, цикл
+        // считается от встроенной даты — и об этом надо сказать, а не молчать
+        if (!schedule.parity().isDerived())
+            s.append(" · чётность недели не подтверждена сайтом");
+        else if (schedule.parity().agreement() < 0.9)
             s.append(" · чётность недель неточная");
         tvStatus.setText(s);
     }
@@ -716,7 +736,9 @@ public final class MainActivity extends Activity {
 
         View stripe = new View(this);
         stripe.setId(R.id.lesson_stripe);
-        LinearLayout.LayoutParams stripeLp = Ui.lp(dp(4), dp(44));
+        // высота по строке, а не фиксированная: при системном шрифте 200 %
+        // строка становится выше, и полоска должна тянуться вместе с ней
+        LinearLayout.LayoutParams stripeLp = Ui.lp(dp(4), -1);
         stripeLp.rightMargin = dp(10);
         row.addView(stripe, stripeLp);
 
@@ -725,7 +747,8 @@ public final class MainActivity extends Activity {
         time.setTextSize(12);
         time.setTypeface(Typeface.DEFAULT_BOLD);
         time.setLineSpacing(0, 0.95f);
-        row.addView(time, Ui.lp(dp(48), -2));
+        time.setMinWidth(dp(44));           // ширина по тексту, чтобы не обрезалось
+        row.addView(time, Ui.lp(-2, -2));
 
         LinearLayout middle = Ui.column(this);
         LinearLayout.LayoutParams midLp = Ui.lp(0, -2, 1f);
@@ -746,7 +769,8 @@ public final class MainActivity extends Activity {
         room.setId(R.id.lesson_room);
         room.setTextSize(12);
         room.setGravity(Gravity.END);
-        row.addView(room, Ui.lp(dp(80), -2));
+        room.setMaxWidth(dp(110));          // длинное название не должно съедать предмет
+        row.addView(room, Ui.lp(-2, -2));
 
         return row;
     }

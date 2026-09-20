@@ -61,8 +61,24 @@ public final class TimerWidget extends AppWidgetProvider {
         rv.setViewVisibility(R.id.wt_ring_break, brk);
         rv.setTextViewText(R.id.wt_main, main);
         rv.setTextViewText(R.id.wt_sub, sub);
+        rv.setContentDescription(R.id.wt_root, describe(st));
         rv.setOnClickPendingIntent(R.id.wt_root, Widgets.open(app));
         return rv;
+    }
+
+    /** Кольцо без подписи для TalkBack — просто число; поэтому говорим словами. */
+    private static String describe(Now.State st) {
+        switch (st.kind) {
+            case Now.ONGOING:
+                return "Идёт " + st.current.subject + ", осталось " + Now.human(st.remainSec);
+            case Now.BREAK:
+                return "Следующая пара " + st.next.subject + " через " + Now.human(st.remainSec);
+            case Now.AFTER:
+                return (st.isTomorrow() ? "Завтра" : Now.dayLabel(st)) + " в "
+                        + Now.startOf(st.next.time) + ": " + st.next.subject;
+            default:
+                return st.groupId == null ? "Группа не выбрана" : "Пар нет";
+        }
     }
 
     /** Округление вверх: пока пара идёт, в кольце не должно быть нуля. */

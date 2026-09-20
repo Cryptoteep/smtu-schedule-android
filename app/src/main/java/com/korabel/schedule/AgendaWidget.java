@@ -37,6 +37,7 @@ public final class AgendaWidget extends AppWidgetProvider {
         RemoteViews rv = new RemoteViews(app.getPackageName(), R.layout.widget_agenda);
         rv.setOnClickPendingIntent(R.id.wa_root, Widgets.open(app));
         rv.setTextViewText(R.id.wa_group, st.groupName == null ? "" : st.groupName);
+        rv.setContentDescription(R.id.wa_root, describe(st));
 
         if (st.kind == Now.NONE) {
             rv.setTextViewText(R.id.wa_header, st.groupId == null ? "НЕТ ГРУППЫ" : "ПАР НЕТ");
@@ -73,6 +74,17 @@ public final class AgendaWidget extends AppWidgetProvider {
         rows(rv, upcoming);
         hint(rv, upcoming.isEmpty() && st.kind == Now.ONGOING ? "Это последняя пара" : null);
         return rv;
+    }
+
+    /** Виджет читается целиком: список строк TalkBack озвучит и так. */
+    private static String describe(Now.State st) {
+        if (st.kind == Now.NONE)
+            return st.groupId == null ? "Группа не выбрана" : "Пар нет";
+        if (st.kind == Now.ONGOING)
+            return "Сейчас " + st.current.subject + ", осталось " + Now.human(st.remainSec);
+        String when = st.kind == Now.BREAK ? "через " + Now.human(st.remainSec)
+                : st.isTomorrow() ? "завтра" : Now.dayLabel(st).toLowerCase(Dates.RU);
+        return "Следующая пара " + when + ": " + st.next.subject;
     }
 
     /** «08:30–10:00 · 167 · осталось 25 мин» */

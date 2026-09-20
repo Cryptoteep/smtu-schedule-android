@@ -35,9 +35,12 @@ import java.util.zip.GZIPInputStream;
  * Parsing itself lives in {@link ScheduleParser}; this class stays thin so the
  * interesting logic can be unit-tested without Android.
  *
- * Caching policy: every fetch is merged into the cached copy of that schedule
- * (see {@link Schedule#mergedWith}), so the app starts instantly, works offline,
- * and keeps lessons that the university later removes from the page.
+ * Кэш: ответ сайта целиком заменяет сохранённую копию, а копия нужна только
+ * для запуска без сети. Раньше свежий ответ доливался к старому, чтобы пережить
+ * временно пустую страницу, — но занятия отсекались по их точным датам. Дат на
+ * странице больше нет, и слияние превратилось в накопитель: отменённая пара
+ * оставалась бы в приложении навсегда. От пустой страницы защищает другое —
+ * пустой ответ считается ошибкой и до кэша не доходит.
  */
 public final class Smtu {
 
@@ -119,8 +122,8 @@ public final class Smtu {
         final Context app = ctx.getApplicationContext();
         final Schedule cached = readSchedule(app, teacher, id);
         race(cb,
-                () -> fromSite(teacher, id, cached),
-                () -> fromMirror(teacher, id, cached),
+                () -> fromSite(teacher, id),
+                () -> fromMirror(teacher, id),
                 fresh -> {
                     writeSchedule(app, teacher, id, fresh);
                     if (teacher) trimTeacherCaches(app);
@@ -129,15 +132,15 @@ public final class Smtu {
     }
 
     /** Живая страница расписания на сайте университета. */
-    private static Schedule fromSite(boolean teacher, String id, Schedule cached) throws Exception {
+    private static Schedule fromSite(boolean teacher, String id) throws Exception {
         String path = teacher ? "/ru/viewschedule_new/teacher/" : "/ru/viewschedule_new/";
         String html = httpGet(HOST + path + id + "/");
         List<Lesson> lessons = ScheduleParser.parseSchedule(html);
         if (lessons.isEmpty()) throw new IOException("расписание на сайте пусто");
         String title = ScheduleParser.parseTitle(html);
         if (title.isEmpty() && teacher) title = lessons.get(0).teacher;
-        return cached.mergedWith(new Schedule(lessons, title, System.currentTimeMillis(),
-                false, ScheduleParser.parseWeekAnchor(html)));
+        return new Schedule(lessons, title, System.currentTimeMillis(),
+                false, ScheduleParser.parseWeekAnchor(html));
     }
 
     /**
@@ -147,14 +150,13 @@ public final class Smtu {
      * может отставать на несколько часов — об этом честно сообщается в ответе,
      * а метка времени берётся из заголовка Last-Modified.
      */
-    private static Schedule fromMirror(boolean teacher, String id, Schedule cached)
-            throws Exception {
+    private static Schedule fromMirror(boolean teacher, String id) throws Exception {
         Response res = getWithHeaders(Mirror.scheduleUrl(teacher, id));
         List<Lesson> lessons = Mirror.parseSchedule(res.body);
         if (lessons.isEmpty()) throw new IOException("в срезе нет этого расписания");
         long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
-        return cached.mergedWith(new Schedule(lessons, Mirror.parseTitle(res.body), at, true,
-                Mirror.parseAnchor(res.body)));
+        return new Schedule(lessons, Mirror.parseTitle(res.body), at, true,
+                Mirror.parseAnchor(res.body));
     }
 
     // ------------------------------------------------------------------- race

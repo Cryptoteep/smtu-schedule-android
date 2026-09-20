@@ -109,6 +109,38 @@ public class ScheduleParserV2Test {
         assertTrue(s.isUpper(monday + 7));
     }
 
+    @Test public void theCardViewIsARealFallback() {
+        List<Lesson> cards = ScheduleParser.parseCards(Fixtures.GROUP_V2);
+        assertEquals("карточки дают то же, что таблица", LESSONS.size(), cards.size());
+
+        Lesson first = cards.get(0);
+        assertEquals("Понедельник", first.day);
+        assertEquals("11:50 - 13:20", first.time);
+        assertEquals("Общая и неорганическая химия", first.subject);
+        assertEquals("Лекция", first.type);
+        assertEquals("У 167", first.room);
+        assertEquals("Ходжаев Рустам Саломович", first.teacher);
+        assertEquals("105760", first.teacherId);
+        assertEquals("группу в карточках не пишут — берём из заголовка страницы",
+                "12226-11", first.group);
+        assertTrue(first.upper);
+
+        int both = 0;
+        for (Lesson l : cards) if (l.bothWeeks) both++;
+        assertEquals(13, both);
+    }
+
+    @Test public void aLessonBeyondTheHorizonIsNotInvented() {
+        long fetched = Dates.startOfDayMillis(Dates.toEpochDay(2026, 9, 21), 12 * 60);
+        Schedule s = new Schedule(LESSONS, "12226-11", fetched, false,
+                ScheduleParser.parseWeekAnchor(Fixtures.GROUP_V2));
+        long july = Dates.toEpochDay(2027, 7, 12);
+        assertTrue("в июле занятий не показываем", s.on(july).isEmpty());
+        assertFalse(s.inSemester(july));
+        assertEquals("и виджет в каникулы молчит", Now.NONE,
+                Now.compute(s, july, 9 * 3600).kind);
+    }
+
     @Test public void saysNothingWhenThePageHasNoAnchor() {
         assertNull(ScheduleParser.parseWeekAnchor("<html><body>ничего</body></html>"));
         assertNull(ScheduleParser.parseWeekAnchor("Сегодня: 32 Кактября 2026 года, верхняя неделя"));

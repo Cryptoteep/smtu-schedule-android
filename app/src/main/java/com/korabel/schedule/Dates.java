@@ -114,6 +114,14 @@ public final class Dates {
         return c.getTimeInMillis();
     }
 
+    /** Момент времени -> календарный день в местном часовом поясе. */
+    public static long epochDayOf(long millis) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(millis);
+        return toEpochDay(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1,
+                c.get(Calendar.DAY_OF_MONTH));
+    }
+
     // ---------------------------------------------------------------- parsing
 
     /** "14.09.2026" -> epoch day, or {@link #NO_DATE} if it is not a date. */

@@ -267,7 +267,12 @@ public final class ScheduleParser {
 
     static List<Lesson> parseCards(String html) {
         List<Lesson> out = new ArrayList<>();
-        String section = section(html, "id=\"card-container\"");
+        // карточный вид идёт раньше табличного, и обрывать его надо на таблице —
+        // иначе разбор уедет в неё и не найдёт ни одной карточки
+        String section = section(html, "id=\"card-container\"", "id=\"table-container\"");
+        // в карточном виде группа нигде не написана: на странице группы её знает
+        // заголовок, на странице преподавателя — не знает никто, и это честно
+        String group = parseTitle(html);
         for (String block : dayBlocks(section)) {
             String day = firstHeading(block);
             for (String card : timeCards(block)) {
@@ -283,6 +288,7 @@ public final class ScheduleParser {
                     else continue;
                     l.day = day;
                     l.time = time;
+                    if (l.group.isEmpty()) l.group = group;
                     out.add(l);
                 }
             }
@@ -332,9 +338,15 @@ public final class ScheduleParser {
 
     /** The chunk of the page starting at `marker`, stopping before the footer. */
     private static String section(String html, String marker) {
+        return section(html, marker, null);
+    }
+
+    /** То же, но с явной границей: разбор не должен уезжать в соседний блок. */
+    private static String section(String html, String marker, String until) {
         int start = html.indexOf(marker);
         if (start < 0) return "";
-        int end = html.indexOf("</main", start);
+        int end = until == null ? -1 : html.indexOf(until, start);
+        if (end < 0) end = html.indexOf("</main", start);
         if (end < 0) end = html.indexOf("<footer", start);
         return end < 0 ? html.substring(start) : html.substring(start, end);
     }
@@ -346,8 +358,14 @@ public final class ScheduleParser {
      * прежняя помечала блок класcом {@code js-day-block}.
      */
     private static List<String> dayBlocks(String section) {
-        List<String> out = split(section, "js-day-block");
-        return out.isEmpty() ? split(section, "<div class=\"card my-4\">") : out;
+        for (String marker : new String[]{
+                "js-day-block",                 // вёрстка до 15.09.2026
+                "<div class=\"card my-4\">",    // таблица: день обёрнут карточкой
+                "<h2"}) {                       // карточный вид: день — просто заголовок
+            List<String> out = split(section, marker);
+            if (!out.isEmpty()) return out;
+        }
+        return new ArrayList<>();
     }
 
     /** Карточки времени внутри дня: прежний маркер или заголовок со временем. */

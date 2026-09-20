@@ -12,14 +12,14 @@
         android:id="@+id/wn_stripe_lesson"
         android:layout_width="4dp"
         android:layout_height="match_parent"
-        android:contentDescription="@string/widget_now_desc"
+        android:importantForAccessibility="no"
         android:background="@color/w_lesson" />
 
     <ImageView
         android:id="@+id/wn_stripe_break"
         android:layout_width="4dp"
         android:layout_height="match_parent"
-        android:contentDescription="@string/widget_now_desc"
+        android:importantForAccessibility="no"
         android:background="@color/w_break"
         android:visibility="gone" />
 

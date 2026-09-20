@@ -1,5 +1,5 @@
 {
-  "version": "2.6",
+  "version": "2.7",
   "releases": "https://github.com/Cryptoteep/smtu-schedule-android/releases/latest",
-  "notes": "Сайт университета сменил вёрстку 15.09 — приложение снова читает расписание"
+  "notes": "Расписание не выдумывает пары в каникулы, отменённые занятия исчезают, подписи для TalkBack"
 }

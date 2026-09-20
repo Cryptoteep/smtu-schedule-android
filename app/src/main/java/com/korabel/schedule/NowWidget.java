@@ -33,6 +33,8 @@ public final class NowWidget extends AppWidgetProvider {
             rv.setTextViewText(R.id.wn_time, "");
             rv.setTextViewText(R.id.wn_extra, "");
             stripe(rv, false, false);
+            rv.setContentDescription(R.id.wn_root,
+                    st.groupId == null ? "Группа не выбрана" : "Пар нет");
             return rv;
         }
 
@@ -68,6 +70,9 @@ public final class NowWidget extends AppWidgetProvider {
                         : ongoing ? R.color.w_lesson : R.color.w_break));
         rv.setViewVisibility(R.id.wn_extra, extra.isEmpty() ? View.GONE : View.VISIBLE);
         stripe(rv, ongoing, !ongoing);
+        // TalkBack читает виджет целиком, а не по кусочкам
+        rv.setContentDescription(R.id.wn_root, label + ": " + lesson.subject + ", "
+                + Now.compactTime(lesson.time) + (extra.isEmpty() ? "" : ", " + extra));
         return rv;
     }
 

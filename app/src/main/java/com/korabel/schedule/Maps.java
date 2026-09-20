@@ -238,8 +238,8 @@ final class Maps {
         bar.setGravity(Gravity.CENTER);
         final Ui ui = new Ui(a);
 
-        TextView prev = ui.iconButton(a, "‹", 24);
-        TextView next = ui.iconButton(a, "›", 24);
+        TextView prev = ui.iconButton(a, "‹", 24, "Этажом ниже");
+        TextView next = ui.iconButton(a, "›", 24, "Этажом выше");
         final TextView caption = new TextView(a);
         caption.setGravity(Gravity.CENTER);
         caption.setTextSize(15);

@@ -217,6 +217,7 @@ async function updatedAt() {
 // ----------------------------------------------------------------- запросы
 
 function lessonsOn(ed) {
+  if (!covered(ed)) return [];
   const upper = isUpper(state.parity, ed);
   const weekday = DAY_FULL[dayOfWeek(ed)];
   return state.lessons
@@ -226,10 +227,29 @@ function lessonsOn(ed) {
     .sort((a, b) => a.start - b.start);
 }
 
+/**
+ * Какие дни покрывает загруженное расписание.
+ *
+ * У старых данных границы честные — из дат занятий. С 15.09.2026 дат нет, и
+ * правило «день недели + чётность» можно продолжать хоть на год вперёд. Чтобы
+ * не показывать выдуманные пары в каникулы, расписание без дат считается
+ * действующим примерно на семестр от дня, когда его собрали.
+ */
+const HORIZON_WEEKS = 16;
+
 function semester() {
   let min = Infinity, max = -Infinity;
   for (const l of state.lessons) for (const d of l.days) { if (d < min) min = d; if (d > max) max = d; }
-  return min === Infinity ? null : { first: min, last: max };
+  if (min !== Infinity) return { first: min, last: max, exact: true };
+  if (!state.lessons.length || !state.fetchedAt) return null;
+  const from = monday(Math.floor(state.fetchedAt / 86400000));
+  return { first: from, last: from + HORIZON_WEEKS * 7 - 1, exact: false };
+}
+
+/** Есть ли смысл показывать этот день. */
+function covered(ed) {
+  const sem = semester();
+  return !sem || (ed >= sem.first && ed <= sem.last);
 }
 
 function shownDay() { return state.dayMode ? state.mon + state.offset : state.mon; }
@@ -366,8 +386,13 @@ function renderBody() {
   if (!printed) {
     const sem = semester();
     const shown = shownDay();
-    main.innerHTML = '<div class="hint">' + (sem && (shown < sem.first || shown > sem.last)
-      ? 'Вне семестра.\nРасписание есть с ' + dayMonth(sem.first) + ' по ' + dayMonthYear(sem.last) + '.'
+    const outside = sem && (shown < sem.first || shown > sem.last);
+    main.innerHTML = '<div class="hint">' + (outside
+      ? (sem.exact
+          ? 'Вне семестра.\nРасписание есть с ' + dayMonth(sem.first) + ' по ' + dayMonthYear(sem.last) + '.'
+          : 'Сюда расписание не достаёт.\nОно собрано '
+            + dayMonth(Math.floor(state.fetchedAt / 86400000))
+            + ' и покрывает по ' + dayMonthYear(sem.last) + '.')
       : state.dayMode ? 'Занятий нет — свободный день.' : 'На этой неделе занятий нет.') + '</div>';
   }
 }
