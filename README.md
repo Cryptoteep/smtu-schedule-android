@@ -22,7 +22,7 @@
   <img alt="Android 5.0+" src="https://img.shields.io/badge/Android-5.0%2B-3DDC84">
   <img alt="Размер APK" src="https://img.shields.io/badge/APK-89%20%D0%9A%D0%91-1A3E8C">
   <img alt="Зависимостей нет" src="https://img.shields.io/badge/%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen">
-  <img alt="Тестов 68" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-68-brightgreen">
+  <img alt="Тестов 78" src="https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D0%BE%D0%B2-78-brightgreen">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
@@ -119,12 +119,11 @@ GET /ru/viewschedule_new/teacher/<pid>/ -> расписание преподав
 таблицу:
 
 ```html
-<tr class="js-week-container js-week-1">          <!-- 1 — верхняя, 2 — нижняя -->
-  <th>08:30 - 10:00</th>
-  <td>верхняя</td>
-  <td title="14.09.2026, 28.09.2026, …">14 сентября — 21 декабря 2026</td>
-  <td>167 Корпус У</td>
-  <td>12826-11</td>
+<tr class="js-week-container" id="week-up-container">   <!-- up / down / both -->
+  <th>11:50-13:20</th>
+  <td><i data-bs-title="Верхняя неделя"></i></td>
+  <td>У 167</td>
+  <td>12226-11</td>
   <td><span>Предмет</span><br><small class="text-muted">Лекция</small></td>
   <td><a href='/ru/viewperson/105760/'>Фамилия Имя Отчество</a></td>
 ```
@@ -133,23 +132,43 @@ GET /ru/viewschedule_new/teacher/<pid>/ -> расписание преподав
 переставленный столбец не сдвинет данные молча. Карточный разбор остался
 запасным путём на случай, если таблица со страницы исчезнет.
 
-Атрибут `title` со **всеми точными датами** каждой пары — то, что делает
-просмотр по дням честным: приложение не гадает, «выпадает ли пара на эту
-неделю», а знает это от университета.
+### Что случилось 15 сентября 2026
 
-### Чётность недели считается из данных, а не от даты в коде
+Университет переделал вёрстку расписания, и это стоило пяти дней тишины.
+Страница отвечала «200 ОК», парсер находил ноль занятий, сборщик данных
+публиковал пустые срезы — а приложение показывало сохранённое расписание
+недельной давности, ничем не выдавая беды. Выводы вшиты в код:
 
-Сайт нигде не пишет машиночитаемо, какая неделя сейчас. Обычное решение —
-зашить в код опорную дату («неделя такого-то числа — верхняя») и считать от
-неё; оно ломается после первого же переноса занятий и устаревает к следующему
-семестру.
+- **Пустой результат — это ошибка.** Сборщик падает, если занятий не нашлось
+  вовсе или если больше половины групп оказались пустыми, и такой срез не
+  публикуется.
+- **Разбор прежней вёрстки сохранён** рядом с новым: сохранённые страницы в
+  тестах продолжают проверяться, а откат на сайте ничего не сломает.
 
-Здесь цикл восстанавливается из самого расписания: каждая строка помечена
-`js-week-1`/`js-week-2` и несёт список своих дат, то есть данные сами говорят,
-какие календарные недели верхние. Опорной берётся неделя с самым уверенным
-большинством, затем по ней проверяется весь семестр; если цикл где-то рвётся,
-приложение честно пишет «чётность недель неточная» в строке состояния, а не
-делает вид, что всё в порядке.
+Из данных при этом исчезло главное — **список точных дат** каждой пары. Раньше
+приложение не гадало, выпадает ли пара на эту неделю, а знало это от
+университета. Теперь день собирается по правилу «день недели + чётность»,
+а у занятий появился третий вид недели — «каждую неделю».
+
+### Чётность недели берётся у сайта, а не считается от даты в коде
+
+Обычное решение — зашить в код опорную дату («неделя такого-то числа —
+верхняя») и считать от неё; оно ломается после первого же переноса занятий и
+устаревает к следующему семестру.
+
+Раньше цикл восстанавливался из самого расписания: у каждой строки был список
+дат, и данные сами говорили, какие календарные недели верхние. Дат больше нет,
+зато сайт печатает чётность прямым текстом:
+
+```
+Сегодня: 20 Сентября 2026 года, Воскресенье, верхняя неделя
+```
+
+Эту строку приложение и разбирает — надёжнее некуда, её пишет сам университет.
+Якорь кладётся в кэш и в срез на GitHub, поэтому чётность верна и офлайн.
+Вывод из дат остался для сохранённых данных старого формата; если цикл в них
+где-то рвётся, приложение честно пишет «чётность недель неточная» в строке
+состояния, а не делает вид, что всё в порядке.
 
 ## Структура кода
 
@@ -159,8 +178,8 @@ app/src/main/java/com/korabel/schedule/
   Html.java             снятие тегов и декодирование HTML-сущностей
   Lesson.java           занятие: время, чётность, точные даты, преподаватель, группа
   Group.java            группа с натуральной сортировкой (9 раньше 12)
-  ScheduleParser.java   парсер страниц smtu.ru (таблица + карточки как запасной путь)
-  WeekParity.java       восстановление цикла верхняя/нижняя по данным
+  ScheduleParser.java   парсер страниц smtu.ru (обе вёрстки: до и после 15.09.2026)
+  WeekParity.java       чётность недель: якорь со страницы, вывод из дат — запасной
   Schedule.java         запросы: день, неделя, «что сейчас», поиск, слияние с кэшем
   Mirror.java           разбор резервного среза на GitHub Pages
   Smtu.java             сеть и кэш: гонка «сайт против копии», единый вход в Android
@@ -173,7 +192,7 @@ app/src/main/java/com/korabel/schedule/
   WidgetTick/SystemEvents.java              будильник и BOOT/TIME_SET
   Ui.java               палитра (светлая/тёмная) и построители вью
   MainActivity.java     весь экран и диалоги
-app/src/test/java/…                68 JVM-тестов
+app/src/test/java/…                78 JVM-тестов
 app/src/test/resources/fixtures/   реальные страницы smtu.ru, на которых они гоняются
 
 docs/                 страница установки и политика конфиденциальности (GitHub Pages)
@@ -192,13 +211,15 @@ tools/build-data.mjs  сборщик этих данных (запускаетс
 ./gradlew test
 ```
 
-68 тестов гоняются **на настоящих страницах** сайта (осенний семестр
+78 тестов гоняются **на настоящих страницах** сайта (осенний семестр
 2026/2027), сохранённых в `app/src/test/resources/fixtures/`. Проверяется, среди
 прочего:
 
 - все 449 групп разбираются и сортируются натурально;
-- у группы 12826-11 читаются все 47 строк со всеми полями (предмет, тип,
-  аудитория, преподаватель и его id, группа, диапазон и 8 точных дат);
+- у группы 12826-11 читаются все 47 строк старой вёрстки со всеми полями
+  (предмет, тип, аудитория, преподаватель и его id, группа, диапазон и 8 дат);
+- на нынешней вёрстке читаются все 32 строки, включая 13 занятий «каждую
+  неделю», а чётность берётся из строки «Сегодня: … верхняя неделя»;
 - преподаватель, напечатанный без ссылки на карточку персоны, всё равно
   распознаётся, а примечание «С 26.10 по 14.12» не принимается за ФИО;
 - на странице преподавателя у каждой пары есть группа;
@@ -300,16 +321,21 @@ this project's own GitHub Pages and says so.
 
 **How it works.** The site has no API, so the app parses its server-rendered
 pages. It reads the **table** view rather than the cards: the table is the only
-one that names the group of each lesson, and its `title` attribute lists every
-exact date a lesson occurs on. Columns are located by their header text, so a
-reordered column cannot shift data silently.
+one that names the group of each lesson. Columns are located by their header
+text, so a reordered column cannot shift data silently.
 
-**Week parity is derived from the data**, not hard-coded: every row is tagged
-`js-week-1`/`js-week-2` and carries its dates, so the upper/lower cycle is
-reconstructed from the schedule itself — and reported as uncertain when the
-cycle does not add up.
+**The university changed the markup on 15 September 2026** — and it cost five
+silent days: pages still answered 200, the parser found no lessons at all, and
+the collector happily published empty snapshots. Both are now hard errors, the
+previous markup is still parsed, and the tests cover the old and new pages
+side by side.
 
-**Tests.** `./gradlew test` runs 50 JVM tests against real pages saved from
+**Week parity comes from the site itself**: the page prints «Сегодня: … верхняя
+неделя», and that anchor is stored in the cache and in the snapshot, so parity
+stays right offline. Exact per-lesson dates are gone from the page, so a day is
+matched by weekday plus parity — and a lesson may now run on both weeks.
+
+**Tests.** `./gradlew test` runs 78 JVM tests against real pages saved from
 smtu.ru. The core (`Dates`, `Html`, `Lesson`, `Group`, `ScheduleParser`,
 `WeekParity`, `Schedule`) has no Android dependencies; `Smtu` is the only class
 that knows about `Context`.

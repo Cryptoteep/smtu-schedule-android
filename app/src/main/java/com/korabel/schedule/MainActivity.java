@@ -761,7 +761,7 @@ public final class MainActivity extends Activity {
         if (!lesson.room.isEmpty()) m.append(m.length() > 0 ? " · " : "").append(lesson.room);
         Maps.Building building = Maps.ofRoom(lesson.room);
         if (building != null && building.hasPlan()) m.append("\n🗺 План корпуса — в «Ещё»");
-        m.append('\n').append(lesson.upper ? "Верхняя" : "Нижняя").append(" неделя");
+        m.append('\n').append(lesson.weekLabel());
         if (!lesson.group.isEmpty()) m.append(" · группа ").append(lesson.group);
         if (!lesson.teacher.isEmpty()) m.append("\n\nПреподаватель: ").append(lesson.teacher);
         if (!lesson.note.isEmpty()) m.append("\n\n").append(lesson.note);

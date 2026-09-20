@@ -1,0 +1,875 @@
+<!-- www.smtu.ru, вёрстка с 15.09.2026, обрезано до расписания -->
+<main>
+	<section class="pt-2 pb-4">
+		<div class="container">
+			<div class="d-flex align-items-end">
+				<div>
+					<h1>Расписание занятий <br>преподаватель  <span id='teacher_echo'></span></h1>
+					<h2 class="h5 text-muted">Сегодня: 20 Сентября 2026 года, Воскресенье, верхняя неделя</h2>
+					<h5>Ссылки на курсы, реализуемые в дистанционном режиме, можно найти в личном кабинете студента (раздел "Центр дистанционного обучения").</h5>
+				</div>
+			</div>
+			<div class="d-flex align-items-end">
+				<form class="ms-auto" id="view-mode">
+					<div class="hstack gap-3">
+						<div class="btn-group" role="group" aria-label="Типы недель">
+							<input class="btn-check" id="week-all" type="radio" name="week" value="all" autocomplete="off" onchange="this.form.submit()">
+							<label class="btn btn-outline-info" for="week-all" data-bs-toggle="tooltip" data-bs-title="Показать все недели"><i class="fa-solid fa-repeat"></i></label>
+							<input class="btn-check" id="week-up" type="radio" name="week" value="up" autocomplete="off" onchange="this.form.submit()">
+							<label class="btn btn-outline-success" for="week-up" data-bs-toggle="tooltip" data-bs-title="Показать верхние недели"><i class="fa-solid fa-turn-up"></i></label>
+							<input class="btn-check" id="week-down" type="radio" name="week" value="down" autocomplete="off" onchange="this.form.submit()">
+							<label class="btn btn-outline-warning" for="week-down" data-bs-toggle="tooltip" data-bs-title="Показать нижние недели"><i class="fa-solid fa-turn-down"></i></label>
+						</div>
+						<div class="btn-group" role="group" aria-label="Расписание в виде карточек или таблицы">
+							<input class="btn-check" id="card" type="radio" name="view_mode" value="card" autocomplete="off" onchange="this.form.submit()">
+							<label class="btn btn-outline-primary" for="card" data-bs-toggle="tooltip" data-bs-title="Включить расписание в виде карточек"><i class="fa-solid fa-id-card"></i></label>
+							<input class="btn-check" id="table" type="radio" name="view_mode" value="table" autocomplete="off" onchange="this.form.submit()">
+							<label class="btn btn-outline-primary" for="table" data-bs-toggle="tooltip" data-bs-title="Включить расписание в виде таблицы"><i class="fa-solid fa-table-list"></i></label>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	</section>
+	<section class="bg-body-secondary pt-2 py-4">
+		<div class="container">
+			<div class="collapse js-view-mode-container" id="card-container">
+				<h2 class="h3 mt-4 mb-2">Понедельник</h2>
+				<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-4 mb-4">
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>11:50-13:20</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Общая и неорганическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 167 <small class="text-muted">Лекция</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Общая и неорганическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 167 <small class="text-muted">Лекция</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Общая и неорганическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 167 <small class="text-muted">Лекция</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Общая и неорганическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 167 <small class="text-muted">Лекция</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>15:40-17:10</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Лабораторные работы по общей и неорганической химии</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-down-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-warning">
+											<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+										</span>
+										<span>Лабораторные работы по общей и неорганической химии</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+				</div>
+				<h2 class="h3 mt-4 mb-2">Вторник</h2>
+				<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-4 mb-4">
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>11:50-13:20</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Лабораторные работы по общей и неорганической химии</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-down-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-warning">
+											<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+										</span>
+										<span>Лабораторные работы по общей и неорганической химии</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>14:00-15:30</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-both-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-info">
+											<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+										</span>
+										<span>Физическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>15:40-17:10</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Физическая химия</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+				</div>
+				<h2 class="h3 mt-4 mb-2">Среда</h2>
+				<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-4 mb-4">
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>10:10-11:40</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-both-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-info">
+											<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+										</span>
+										<span>Защита судов от коррозии и обрастания</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(1) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>11:50-13:20</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-both-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-info">
+											<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+										</span>
+										<span>Защита судов от коррозии и обрастания</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(1) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+				</div>
+				<h2 class="h3 mt-4 mb-2">Пятница</h2>
+				<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-4 mb-4">
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>11:50-13:20</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Защита судов от коррозии и обрастания</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лекция</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-down-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-warning">
+											<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+										</span>
+										<span>Защита судов от коррозии и обрастания</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>14:00-15:30</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-down-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-warning">
+											<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+										</span>
+										<span>Защита судов от коррозии и обрастания</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+					<div class="col">
+						<div class="card h-100">
+							<div class="card-body lh-sm">
+								<h3 class="h5 card-title mb-0">
+									<i class="fa-solid fa-clock fa-xs text-muted me-2"></i>
+									<span>15:40-17:10</span>
+								</h3>
+																<div class="js-week-container collapse show" id="week-up-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-success">
+											<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+										</span>
+										<span>Коррозия металлов</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Практическое занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+																<div class="js-week-container collapse show" id="week-down-container">
+									<h3 class="h6 card-title mt-3 mb-0">
+										<span class="float-end text-warning">
+											<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+										</span>
+										<span>Коррозия металлов</span>
+																			</h3>
+									<p class="card-text my-1"><em>У 536(2) <small class="text-muted">Лабораторное занятие</small></em></p>
+																		<div class="d-flex align-items-center">
+																				<div class="ratio me-2 mt-1" style="--bs-aspect-ratio: 150%; width: 24px">
+											<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+										</div>
+																						<a href="/ru/viewperson/105760/">
+																						<small>Ходжаев Рустам Саломович</small>
+																					</a>
+																				</div>
+																	</div>
+															</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="collapse js-view-mode-container" id="table-container">
+				<div class="card my-4">
+					<div class="card-header">
+						<h3 class="h5 my-0">Понедельник</h3>
+					</div>
+					<table class="table mb-0 table-responsive">
+						<thead>
+						<tr>
+							<th scope="col" width="10%">Время</th>
+							<th scope="col" width="10%">Неделя</th>
+							<th scope="col" width="10%">Аудитория</th>
+							<th scope="col" width="10%">Группа</th>
+							<th scope="col" width="30%">Предмет</th>
+							<th scope="col" width="30%">Преподаватель</th>
+						</tr>
+						</thead>
+						<tbody>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 167</td>
+							<td>12226-11</td>
+							<td>
+								<span>Общая и неорганическая химия</span>
+								<br><small class="text-muted">Лекция</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 167</td>
+							<td>12226-10</td>
+							<td>
+								<span>Общая и неорганическая химия</span>
+								<br><small class="text-muted">Лекция</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 167</td>
+							<td>12226-09</td>
+							<td>
+								<span>Общая и неорганическая химия</span>
+								<br><small class="text-muted">Лекция</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 167</td>
+							<td>12226-08</td>
+							<td>
+								<span>Общая и неорганическая химия</span>
+								<br><small class="text-muted">Лекция</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">15:40-17:10</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>12226-10</td>
+							<td>
+								<span>Лабораторные работы по общей и неорганической химии</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-down-container">
+							<th scope="row">15:40-17:10</th>
+
+							<td class="text-warning">
+								<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>12226-09</td>
+							<td>
+								<span>Лабораторные работы по общей и неорганической химии</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="card my-4">
+					<div class="card-header">
+						<h3 class="h5 my-0">Вторник</h3>
+					</div>
+					<table class="table mb-0 table-responsive">
+						<thead>
+						<tr>
+							<th scope="col" width="10%">Время</th>
+							<th scope="col" width="10%">Неделя</th>
+							<th scope="col" width="10%">Аудитория</th>
+							<th scope="col" width="10%">Группа</th>
+							<th scope="col" width="30%">Предмет</th>
+							<th scope="col" width="30%">Преподаватель</th>
+						</tr>
+						</thead>
+						<tbody>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>12226-11</td>
+							<td>
+								<span>Лабораторные работы по общей и неорганической химии</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-down-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-warning">
+								<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>12226-08</td>
+							<td>
+								<span>Лабораторные работы по общей и неорганической химии</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-both-container">
+							<th scope="row">14:00-15:30</th>
+
+							<td class="text-info">
+								<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>10274</td>
+							<td>
+								<span>Физическая химия</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">15:40-17:10</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>10274</td>
+							<td>
+								<span>Физическая химия</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="card my-4">
+					<div class="card-header">
+						<h3 class="h5 my-0">Среда</h3>
+					</div>
+					<table class="table mb-0 table-responsive">
+						<thead>
+						<tr>
+							<th scope="col" width="10%">Время</th>
+							<th scope="col" width="10%">Неделя</th>
+							<th scope="col" width="10%">Аудитория</th>
+							<th scope="col" width="10%">Группа</th>
+							<th scope="col" width="30%">Предмет</th>
+							<th scope="col" width="30%">Преподаватель</th>
+						</tr>
+						</thead>
+						<tbody>
+						<tr class="js-week-container collapse show" id="week-both-container">
+							<th scope="row">10:10-11:40</th>
+
+							<td class="text-info">
+								<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+							</td>
+							<td>У 536(1)</td>
+							<td>1317</td>
+							<td>
+								<span>Защита судов от коррозии и обрастания</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-both-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-info">
+								<i class="fa-solid fa-repeat" data-bs-toggle="tooltip" data-bs-title="Обе недели"></i>
+							</td>
+							<td>У 536(1)</td>
+							<td>1319</td>
+							<td>
+								<span>Защита судов от коррозии и обрастания</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="card my-4">
+					<div class="card-header">
+						<h3 class="h5 my-0">Пятница</h3>
+					</div>
+					<table class="table mb-0 table-responsive">
+						<thead>
+						<tr>
+							<th scope="col" width="10%">Время</th>
+							<th scope="col" width="10%">Неделя</th>
+							<th scope="col" width="10%">Аудитория</th>
+							<th scope="col" width="10%">Группа</th>
+							<th scope="col" width="30%">Предмет</th>
+							<th scope="col" width="30%">Преподаватель</th>
+						</tr>
+						</thead>
+						<tbody>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>1316</td>
+							<td>
+								<span>Защита судов от коррозии и обрастания</span>
+								<br><small class="text-muted">Лекция</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-down-container">
+							<th scope="row">11:50-13:20</th>
+
+							<td class="text-warning">
+								<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>1316</td>
+							<td>
+								<span>Защита судов от коррозии и обрастания</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-down-container">
+							<th scope="row">14:00-15:30</th>
+
+							<td class="text-warning">
+								<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>1316</td>
+							<td>
+								<span>Защита судов от коррозии и обрастания</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-up-container">
+							<th scope="row">15:40-17:10</th>
+
+							<td class="text-success">
+								<i class="fa-solid fa-arrow-turn-up" data-bs-toggle="tooltip" data-bs-title="Верхняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>10274</td>
+							<td>
+								<span>Коррозия металлов</span>
+								<br><small class="text-muted">Практическое занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						<tr class="js-week-container collapse show" id="week-down-container">
+							<th scope="row">15:40-17:10</th>
+
+							<td class="text-warning">
+								<i class="fa-solid fa-arrow-turn-down" data-bs-toggle="tooltip" data-bs-title="Нижняя неделя"></i>
+							</td>
+							<td>У 536(2)</td>
+							<td>10274</td>
+							<td>
+								<span>Коррозия металлов</span>
+								<br><small class="text-muted">Лабораторное занятие</small>
+															</td>
+							<td>
+																<div class="ratio float-start me-3" style="--bs-aspect-ratio: 150%; width: 24px">
+									<img src="https://ds1.smtu.ru/files/isu_person/photo/2023/11/16/small/p105760.jpg?token_static=3d0d9f5f122ca15298918ba28e486a68" style="object-fit: cover" loading="lazy">
+								</div>
+								<a href='/ru/viewperson/105760/'>
+									Ходжаев Рустам Саломович								</a>							</td>
+						</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+		</div>
+	</section>
+	<script>
+		const params = (new URL(document.location)).searchParams;
+		const view = params.get('view_mode') ?? 'table';
+		const week = params.get('week') ?? 'all';
+		const form = document.querySelector('form#view-mode');
+		if (form) {
+			form.elements[`week-${week}`].checked = true;
+			document
+				.querySelectorAll('.js-view-mode-container')
+				.forEach(c => c.classList.remove('show'));
+			document.querySelector(`#${view}-container`).classList.add('show');
+
+			form.elements[view].checked = true;
+			if (week === 'all') {
+				document
+					.querySelectorAll('.js-week-container')
+					.forEach(c => c.classList.add('show'));
+			} else {
+				document
+					.querySelectorAll('.js-week-container')
+					.forEach(c => c.classList.remove('show'));
+				document
+					.querySelectorAll('#week-both-container')
+					.forEach(c => c.classList.add('show'));
+				document
+					.querySelectorAll(`#week-${week}-container`)
+					.forEach(c => c.classList.add('show'));
+			}
+		}
+                document.getElementById('teacher_echo').textContent = 'Ходжаев Рустам Саломович';
+        	</script>
+</main>

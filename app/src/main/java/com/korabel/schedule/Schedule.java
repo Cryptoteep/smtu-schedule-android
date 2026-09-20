@@ -26,14 +26,23 @@ public final class Schedule {
     private final long firstDay, lastDay;
 
     public Schedule(List<Lesson> lessons, String title, long fetchedAt) {
-        this(lessons, title, fetchedAt, false);
+        this(lessons, title, fetchedAt, false, null);
     }
 
     public Schedule(List<Lesson> lessons, String title, long fetchedAt, boolean mirrored) {
+        this(lessons, title, fetchedAt, mirrored, null);
+    }
+
+    /**
+     * @param anchor чётность недели со страницы сайта; {@code null} — вывести
+     *               её из дат занятий, как делалось до смены вёрстки
+     */
+    public Schedule(List<Lesson> lessons, String title, long fetchedAt, boolean mirrored,
+                    WeekParity anchor) {
         List<Lesson> copy = new ArrayList<>(lessons);
         Collections.sort(copy);
         this.lessons = Collections.unmodifiableList(copy);
-        this.parity = WeekParity.derive(copy);
+        this.parity = anchor != null ? anchor : WeekParity.derive(copy);
         this.title = title == null ? "" : title;
         this.fetchedAt = fetchedAt;
         this.mirrored = mirrored;
@@ -67,9 +76,17 @@ public final class Schedule {
         return parity.isUpper(epochDay);
     }
 
-    /** Is that day inside the semester the page covers? */
+    /**
+     * Is that day inside the semester the page covers?
+     *
+     * Границы известны только когда у занятий есть точные даты. С 15.09.2026
+     * сайт их не печатает, и тогда ответ «да»: лучше показать занятия, чем
+     * объявить весь семестр несуществующим.
+     */
     public boolean inSemester(long epochDay) {
-        return firstDay != Dates.NO_DATE && epochDay >= firstDay && epochDay <= lastDay;
+        if (lessons.isEmpty()) return false;
+        if (firstDay == Dates.NO_DATE) return true;
+        return epochDay >= firstDay && epochDay <= lastDay;
     }
 
     // --------------------------------------------------------------- queries
@@ -98,10 +115,11 @@ public final class Schedule {
 
     /** The next day at or after `from` that has lessons, or {@link Dates#NO_DATE}. */
     public long nextDayWithLessons(long from, int direction) {
-        if (firstDay == Dates.NO_DATE) return Dates.NO_DATE;
-        for (int i = 0; i <= 400; i++) {
+        boolean dated = firstDay != Dates.NO_DATE;
+        int limit = dated ? 400 : 14;      // без дат расписание повторяется каждые две недели
+        for (int i = 0; i <= limit; i++) {
             long d = from + (long) direction * i;
-            if (d < firstDay - 7 || d > lastDay + 7) break;
+            if (dated && (d < firstDay - 7 || d > lastDay + 7)) break;
             if (!on(d).isEmpty()) return d;
         }
         return Dates.NO_DATE;
@@ -164,6 +182,6 @@ public final class Schedule {
         for (Lesson l : fresh.lessons) freshKeys.add(l.key());
         for (Lesson l : lessons) if (!freshKeys.contains(l.key())) out.add(l);
         return new Schedule(out, fresh.title.isEmpty() ? title : fresh.title,
-                fresh.fetchedAt, fresh.mirrored);
+                fresh.fetchedAt, fresh.mirrored, fresh.parity);
     }
 }

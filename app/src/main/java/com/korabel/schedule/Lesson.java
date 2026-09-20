@@ -18,7 +18,9 @@ public final class Lesson implements Comparable<Lesson> {
 
     public String day = "";        // Понедельник..Воскресенье, as printed by the site
     public String time = "";       // "08:30 - 10:00"
-    public boolean upper;          // js-week-1 = верхняя, js-week-2 = нижняя
+    public boolean upper;          // верхняя неделя; при bothWeeks значения не имеет
+    /** Занятие идёт каждую неделю — на сайте это «обе недели» (появилось 15.09.2026). */
+    public boolean bothWeeks;
     public String subject = "";
     public String type = "";       // Лекция / Практическое занятие / Лабораторная работа / ...
     public String room = "";       // "167 Корпус У"
@@ -58,10 +60,23 @@ public final class Lesson implements Comparable<Lesson> {
         return -1;
     }
 
-    /** Does this lesson happen on that day? Exact dates first, parity as fallback. */
+    /**
+     * Does this lesson happen on that day?
+     *
+     * Точные даты — самый надёжный ответ, но на странице их больше нет
+     * (см. {@link ScheduleParser}); они остались только в старом кэше. Без них
+     * работает обычное правило «день недели + чётность», а занятие «обе недели»
+     * попадает в любую.
+     */
     public boolean happensOn(long epochDay, boolean upperWeek) {
         if (!days.isEmpty()) return days.contains(epochDay);
-        return upper == upperWeek && weekdayIndex() == Dates.dayOfWeek(epochDay);
+        if (weekdayIndex() != Dates.dayOfWeek(epochDay)) return false;
+        return bothWeeks || upper == upperWeek;
+    }
+
+    /** «верхняя» / «нижняя» / «каждую неделю» — как это показать человеку. */
+    public String weekLabel() {
+        return bothWeeks ? "Каждую неделю" : upper ? "Верхняя неделя" : "Нижняя неделя";
     }
 
     // ---------------------------------------------------------------- identity
@@ -72,8 +87,8 @@ public final class Lesson implements Comparable<Lesson> {
      * the university edits the page.
      */
     public String key() {
-        return day + '|' + time + '|' + upper + '|' + subject + '|' + type + '|'
-                + room + '|' + teacher + '|' + group;
+        return day + '|' + time + '|' + (bothWeeks ? "both" : upper) + '|' + subject + '|'
+                + type + '|' + room + '|' + teacher + '|' + group;
     }
 
     /** Human one-liner used by list dialogs and the share/export text. */

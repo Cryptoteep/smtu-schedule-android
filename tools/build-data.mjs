@@ -31,7 +31,7 @@ const LIMIT = limitArg > 0 ? Number(process.argv[limitArg + 1]) : Infinity;
 
 // Парсер один на всех: тот же файл подключает и браузер.
 const parserSource = await readFile(new URL('../docs/app/parser.js', import.meta.url), 'utf8');
-const parser = new Function('DOMParser', parserSource + '\nreturn { parseSchedule, parseGroups, parseTitle };')(
+const parser = new Function('DOMParser', parserSource + '\nreturn { parseSchedule, parseGroups, parseTitle, parseWeekAnchor };')(
   class {
     parseFromString(html) { return parseHTML(html).document; }
   }
@@ -67,16 +67,19 @@ console.log('групп в списке:', groups.length);
 
 const index = { updated: new Date().toISOString(), groups: [], teachers: [] };
 const byTeacher = new Map();          // id преподавателя -> его занятия во всех группах
-let lessonsTotal = 0, failed = 0;
+let lessonsTotal = 0, failed = 0, empty = 0;
+let anchor = null;                    // чётность недели, как её пишет сайт
 
 for (const [i, group] of groups.slice(0, LIMIT).entries()) {
   try {
     const html = await fetchPage('/ru/viewschedule_new/' + group.id + '/');
     const lessons = parser.parseSchedule(html);
     const title = parser.parseTitle(html) || group.name;
+    if (!anchor) anchor = parser.parseWeekAnchor(html);
+    if (!lessons.length) empty++;
 
     await writeFile(new URL('g/' + group.id + '.json', OUT),
-      JSON.stringify({ id: group.id, name: title, lessons }));
+      JSON.stringify({ id: group.id, name: title, lessons, ...anchorFields() }));
 
     for (const lesson of lessons) {
       if (!lesson.teacherId) continue;
@@ -99,20 +102,50 @@ for (const [i, group] of groups.slice(0, LIMIT).entries()) {
 }
 
 // расписания преподавателей — из уже разобранных занятий, без единого запроса
+const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+
 for (const [id, box] of byTeacher) {
-  box.lessons.sort((a, b) => (a.days[0] || 0) - (b.days[0] || 0));
+  // дат у занятий больше нет, поэтому порядок — по дню недели и времени начала
+  box.lessons.sort((a, b) =>
+    WEEKDAYS.indexOf(a.day) - WEEKDAYS.indexOf(b.day) || (a.time || '').localeCompare(b.time || ''));
   await writeFile(new URL('t/' + id + '.json', OUT),
-    JSON.stringify({ id, name: box.name, lessons: box.lessons }));
+    JSON.stringify({ id, name: box.name, lessons: box.lessons, ...anchorFields() }));
   index.teachers.push({ id, name: box.name, lessons: box.lessons.length });
 }
 index.teachers.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
 index.groups.sort((a, b) => a.name.localeCompare(b.name, 'ru', { numeric: true }));
+Object.assign(index, anchorFields());
 await writeFile(new URL('index.json', OUT), JSON.stringify(index));
 
 const seconds = Math.round((Date.now() - started) / 1000);
-console.log(`готово за ${seconds} с: ${index.groups.length} групп, ${index.teachers.length} преподавателей, ${lessonsTotal} занятий, ошибок ${failed}`);
+console.log(`готово за ${seconds} с: ${index.groups.length} групп, ${index.teachers.length} преподавателей, ${lessonsTotal} занятий, пустых ${empty}, ошибок ${failed}`);
+
 if (failed > groups.length * 0.2) {
   console.error('слишком много ошибок — не публикуем такой срез');
   process.exit(1);
+}
+
+/*
+ * Страница может ответить «200 OK» и не содержать при этом ни одного занятия —
+ * ровно так и вышло 15.09.2026, когда университет сменил вёрстку: сборщик пять
+ * дней подряд бодро коммитил пустые расписания, и никто этого не заметил.
+ * Поэтому пустой результат — это ошибка, а не «просто ноль занятий».
+ */
+if (!lessonsTotal) {
+  console.error('ни одного занятия на всём сайте — почти наверняка сменилась вёрстка');
+  process.exit(1);
+}
+if (empty > groups.length * 0.5) {
+  console.error(`у ${empty} групп из ${groups.length} расписание пустое — не публикуем такой срез`);
+  process.exit(1);
+}
+if (!anchor) {
+  console.error('на странице нет строки «Сегодня: … неделя» — чётность считать не от чего');
+  process.exit(1);
+}
+
+/** Чётность недели со страницы сайта — в каждый файл, чтобы её знали и офлайн. */
+function anchorFields() {
+  return anchor ? { anchorDay: anchor.day, anchorUpper: anchor.upper } : {};
 }

@@ -131,6 +131,24 @@ public final class Dates {
         }
     }
 
+    /**
+     * «Сентября» / «сентября» / «сентябрь» → 9; 0, если это не месяц.
+     *
+     * Сайт пишет месяц словом в строке «Сегодня: 20 Сентября 2026 года»,
+     * а падеж и регистр у него плавают — сравниваем по корню.
+     */
+    public static int monthNumber(String name) {
+        if (name == null) return 0;
+        String n = name.trim().toLowerCase(RU);
+        if (n.length() < 3) return 0;
+        for (int i = 0; i < MONTH_GEN.length; i++) {
+            String genitive = MONTH_GEN[i];
+            int common = Math.min(4, Math.min(n.length(), genitive.length()));
+            if (n.regionMatches(0, genitive, 0, common)) return i + 1;
+        }
+        return 0;
+    }
+
     /** "HH:MM" -> minutes since midnight, or -1. */
     public static int parseTime(String hhmm) {
         if (hhmm == null || hhmm.length() < 5 || hhmm.charAt(2) != ':') return -1;

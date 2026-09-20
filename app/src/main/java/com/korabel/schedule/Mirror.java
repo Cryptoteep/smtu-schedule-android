@@ -53,6 +53,17 @@ public final class Mirror {
         return out;
     }
 
+    /**
+     * Чётность недели из среза: её кладёт сборщик, взяв со страницы сайта.
+     *
+     * @return якорь или null, если срез старого формата
+     */
+    public static WeekParity parseAnchor(String json) throws Exception {
+        JSONObject o = new JSONObject(json);
+        if (!o.has("anchorDay")) return null;
+        return WeekParity.fromSite(o.optLong("anchorDay"), o.optBoolean("anchorUpper", true));
+    }
+
     /** Название группы или преподавателя из файла расписания. */
     public static String parseTitle(String json) throws Exception {
         return new JSONObject(json).optString("name", "");
@@ -70,6 +81,7 @@ public final class Mirror {
             l.day = o.optString("day", "");
             l.time = o.optString("time", "");
             l.upper = o.optBoolean("upper", true);
+            l.bothWeeks = o.optBoolean("both");
             l.subject = o.optString("subject", "");
             l.type = o.optString("type", "");
             l.room = o.optString("room", "");

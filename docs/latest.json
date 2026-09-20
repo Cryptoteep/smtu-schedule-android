@@ -1,5 +1,5 @@
 {
-  "version": "2.5",
+  "version": "2.6",
   "releases": "https://github.com/Cryptoteep/smtu-schedule-android/releases/latest",
-  "notes": "Виджеты на домашний экран, планы корпусов, расписание грузится под VPN за пару секунд"
+  "notes": "Сайт университета сменил вёрстку 15.09 — приложение снова читает расписание"
 }

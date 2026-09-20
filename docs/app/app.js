@@ -57,9 +57,11 @@ function weekRange(mon) {
 // -------------------------------------------------------------- чётность
 
 /**
- * Какие календарные недели верхние. Сайт нигде не пишет это машиночитаемо,
- * зато каждая строка помечена js-week-1/2 и несёт свои даты — цикл считается
- * из данных и не устаревает к следующему семестру.
+ * Какие календарные недели верхние.
+ *
+ * С 15.09.2026 сайт пишет это прямым текстом («Сегодня: … верхняя неделя»), и
+ * сборщик кладёт якорь в JSON — ему и верим. Прежде чётность выводилась из дат
+ * самих занятий; этот путь остался для старых сохранённых данных.
  */
 function deriveParity(lessons) {
   const votes = new Map();
@@ -128,7 +130,8 @@ const state = {
   dayMode: localStorage.getItem(STORE + 'dayMode') === '1',
   mon: monday(today()),
   offset: dayOfWeek(today()),
-  loading: false
+  loading: false,
+  stale: false
 };
 
 const $ = id => document.getElementById(id);
@@ -140,20 +143,25 @@ function loadCache(teacher, id) {
     const raw = localStorage.getItem(cacheKey(teacher, id));
     if (!raw) return null;
     const box = JSON.parse(raw);
-    return { lessons: box.lessons || [], title: box.title || '', at: box.at || 0 };
+    return {
+      lessons: box.lessons || [], title: box.title || '', at: box.at || 0,
+      anchor: box.anchor || null
+    };
   } catch (e) { return null; }
 }
 
-function saveCache(teacher, id, lessons, title) {
+function saveCache(teacher, id, lessons, title, anchor) {
   try {
     localStorage.setItem(cacheKey(teacher, id),
-      JSON.stringify({ lessons, title, at: Date.now() }));
+      JSON.stringify({ lessons, title, at: Date.now(), anchor }));
   } catch (e) { /* переполнение хранилища — не беда, просто не кэшируем */ }
 }
 
-function setLessons(lessons, title, at) {
+function setLessons(lessons, title, at, anchor) {
   state.lessons = lessons;
-  state.parity = deriveParity(lessons);
+  state.parity = anchor && Number.isFinite(anchor.day)
+    ? { mon: monday(anchor.day), upper: !!anchor.upper, derived: true }
+    : deriveParity(lessons);
   state.fetchedAt = at || 0;
   if (title) {
     if (state.teacherId) state.teacherName = title;
@@ -164,7 +172,7 @@ function setLessons(lessons, title, at) {
 
 async function load(teacher, id, name) {
   const cached = loadCache(teacher, id);
-  if (cached) setLessons(hydrate(cached.lessons), cached.title || name, cached.at);
+  if (cached) setLessons(hydrate(cached.lessons), cached.title || name, cached.at, cached.anchor);
   else setLessons([], name, 0);
 
   state.loading = true;
@@ -173,9 +181,17 @@ async function load(teacher, id, name) {
     const box = await fetchJson('/' + (teacher ? 't' : 'g') + '/' + id + '.json');
     const lessons = hydrate(box.lessons || []);
     const title = box.name || name || '';
+    const anchor = Number.isFinite(box.anchorDay)
+      ? { day: box.anchorDay, upper: !!box.anchorUpper } : null;
+    state.stale = false;
     if (lessons.length) {
-      saveCache(teacher, id, lessons, title);
-      setLessons(lessons, title, await updatedAt());
+      saveCache(teacher, id, lessons, title, anchor);
+      setLessons(lessons, title, await updatedAt(), anchor);
+    } else if (cached && cached.lessons.length) {
+      // срез собрался пустым (так бывает, когда на сайте меняют вёрстку) —
+      // молча показывать старое нечестно, поэтому отмечаем это в строке снизу
+      state.stale = true;
+      render();
     }
   } catch (e) {
     if (!cached) toast('Не удалось загрузить: ' + e.message);
@@ -204,8 +220,9 @@ function lessonsOn(ed) {
   const upper = isUpper(state.parity, ed);
   const weekday = DAY_FULL[dayOfWeek(ed)];
   return state.lessons
-    .filter(l => l.days.length ? l.days.includes(ed)
-                               : l.upper === upper && l.day.toLowerCase() === weekday.toLowerCase())
+    .filter(l => l.days.length
+      ? l.days.includes(ed)
+      : l.day.toLowerCase() === weekday.toLowerCase() && (l.both || l.upper === upper))
     .sort((a, b) => a.start - b.start);
 }
 
@@ -391,6 +408,7 @@ function renderStatus() {
       parts.push('обновлено ' + when);
     }
     if (!state.parity.derived) parts.push('чётность недель неточная');
+    if (state.stale) parts.push('свежие данные не пришли — показано сохранённое');
   }
   $('status').textContent = parts.join(' · ');
 }
@@ -421,7 +439,8 @@ function showLesson(l, ed) {
   box.querySelector('#l1').textContent =
     DAY_FULL[dayOfWeek(ed)] + ', ' + dayMonth(ed) + ', ' + l.time.replace(' - ', ' – ') + '\n' +
     [l.type, l.room].filter(Boolean).join(' · ') + '\n' +
-    (l.upper ? 'Верхняя' : 'Нижняя') + ' неделя' + (l.group ? ' · группа ' + l.group : '') +
+    (l.both ? 'Каждую неделю' : l.upper ? 'Верхняя неделя' : 'Нижняя неделя') +
+      (l.group ? ' · группа ' + l.group : '') +
     (l.note ? '\n' + l.note : '');
   box.querySelector('#l1').style.whiteSpace = 'pre-line';
   if (l.teacher) box.querySelector('#l2').textContent = 'Преподаватель: ' + l.teacher;

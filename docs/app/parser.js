@@ -9,6 +9,11 @@
  * Логика та же, что в Android-приложении: читаем табличный вид
  * (#table-container) — единственный, где у занятия указана группа, — а колонки
  * ищем по заголовкам, чтобы переставленный столбец не сдвинул данные молча.
+ *
+ * Вёрстка сменилась 15.09.2026: точных дат проведения на странице больше нет,
+ * чётность переехала из класса строки в её id (week-up/down/both-container), и
+ * появилось занятие «обе недели». Прежний разбор оставлен рядом — он нужен для
+ * сохранённых страниц в тестах и на случай отката.
  */
 'use strict';
 
@@ -19,7 +24,10 @@ function parseSchedule(html) {
   const out = [];
   if (!table) return out;
 
-  for (const block of table.querySelectorAll('.js-day-block')) {
+  let blocks = [...table.querySelectorAll('.js-day-block')];
+  if (!blocks.length) blocks = [...table.querySelectorAll('div.card')];
+
+  for (const block of blocks) {
     const heading = block.querySelector('h2, h3');
     const day = heading ? heading.textContent.trim() : '';
 
@@ -35,11 +43,13 @@ function parseSchedule(html) {
       else if (name.startsWith('преподават')) cols.teacher = i;
       i++;
     }
-    const col = Object.assign({ time: 0, dates: 2, room: 3, group: 4, subject: 5, teacher: 6 }, cols);
+    const col = Object.assign({ time: 0, dates: -1, room: 2, group: 3, subject: 4, teacher: 5 }, cols);
 
     for (const tr of block.querySelectorAll('tr.js-week-container')) {
+      const week = weekOf(tr);
+      if (!week) continue;
       const cells = tr.querySelectorAll('th, td');
-      const cell = n => cells[n] || null;
+      const cell = n => (n >= 0 && cells[n]) || null;
       const text = n => {
         const c = cell(n);
         return c ? c.textContent.replace(/\s+/g, ' ').trim() : '';
@@ -60,7 +70,8 @@ function parseSchedule(html) {
       const timeMatch = text(col.time).match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
       const lesson = {
         day,
-        upper: tr.classList.contains('js-week-1'),
+        upper: week !== 'down',
+        both: week === 'both',
         time: timeMatch ? timeMatch[1] + ' - ' + timeMatch[2] : '',
         dateRange: text(col.dates),
         room: text(col.room),
@@ -100,6 +111,37 @@ function parseSchedule(html) {
     }
   }
   return out;
+}
+
+/** Чётность строки: id с 15.09.2026, класс — прежняя вёрстка. */
+function weekOf(tr) {
+  const id = tr.getAttribute('id') || '';
+  const m = /^week-(up|down|both)-container$/.exec(id);
+  if (m) return m[1];
+  if (tr.classList.contains('js-week-1')) return 'up';
+  if (tr.classList.contains('js-week-2')) return 'down';
+  return null;
+}
+
+/**
+ * Чётность текущей недели: «Сегодня: 20 Сентября 2026 года, Воскресенье,
+ * верхняя неделя». Единственный машиночитаемый признак, оставшийся на странице
+ * после того, как оттуда убрали даты занятий.
+ *
+ * @return {{day: number, upper: boolean}|null} день в epoch-днях и чётность
+ */
+function parseWeekAnchor(html) {
+  const months = ['январ', 'феврал', 'март', 'апрел', 'мая', 'июн', 'июл',
+                  'август', 'сентябр', 'октябр', 'ноябр', 'декабр'];
+  const m = /Сегодня:\s*(\d{1,2})\s+(\p{L}+)\s+(\d{4})[^<]*?(верхн|нижн)/iu.exec(html);
+  if (!m) return null;
+  const name = m[2].toLowerCase();
+  const month = months.findIndex(root => name.startsWith(root.slice(0, 4)));
+  if (month < 0) return null;
+  return {
+    day: Math.floor(Date.UTC(+m[3], month, +m[1]) / 86400000),
+    upper: m[4].toLowerCase() === 'верхн'
+  };
 }
 
 /** Список групп со страницы /ru/listschedule/. */

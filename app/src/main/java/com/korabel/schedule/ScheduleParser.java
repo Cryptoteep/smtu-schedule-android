@@ -23,14 +23,34 @@ import java.util.regex.Pattern;
  * each lesson, so a teacher's schedule stays usable. The card view is kept as a
  * fallback in case the table disappears.
  *
- *   &lt;tr class="js-week-container js-week-1"&gt;           (1 = верхняя, 2 = нижняя)
- *     &lt;th&gt;08:30 - 10:00&lt;/th&gt;
- *     &lt;td&gt;верхняя&lt;/td&gt;
- *     &lt;td title="14.09.2026, 28.09.2026, …"&gt;14 сентября — 21 декабря 2026&lt;/td&gt;
- *     &lt;td&gt;167 Корпус У&lt;/td&gt;
- *     &lt;td&gt;12826-11&lt;/td&gt;
- *     &lt;td&gt;&lt;span&gt;Предмет&lt;/span&gt;&lt;br&gt;&lt;small class="text-muted"&gt;Лекция&lt;/small&gt;&lt;/td&gt;
- *     &lt;td&gt;&lt;a href='/ru/viewperson/105760/'&gt;Фамилия Имя Отчество&lt;/a&gt;&lt;/td&gt;
+ * <b>Вёрстка сменилась 15.09.2026.</b> Сейчас страница выглядит так:
+ *
+ *   &lt;div class="card my-4"&gt;&lt;h3 class="h5 my-0"&gt;Понедельник&lt;/h3&gt;
+ *     &lt;tr class="js-week-container" id="week-up-container"&gt;   (up/down/both)
+ *       &lt;th&gt;11:50-13:20&lt;/th&gt;
+ *       &lt;td&gt;&lt;i data-bs-title="Верхняя неделя"&gt;&lt;/i&gt;&lt;/td&gt;
+ *       &lt;td&gt;У 167&lt;/td&gt;
+ *       &lt;td&gt;12226-11&lt;/td&gt;
+ *       &lt;td&gt;&lt;span&gt;Предмет&lt;/span&gt;&lt;br&gt;&lt;small class="text-muted"&gt;Лекция&lt;/small&gt;&lt;/td&gt;
+ *       &lt;td&gt;&lt;a href='/ru/viewperson/105760/'&gt;Фамилия Имя Отчество&lt;/a&gt;&lt;/td&gt;
+ *
+ * Что изменилось по сравнению с прежней вёрсткой и почему это важно:
+ *
+ * <ul>
+ *   <li><b>Точных дат больше нет.</b> Раньше каждая строка несла атрибут
+ *       {@code title} со списком всех дат проведения, и по нему считалось всё —
+ *       и чётность недели, и границы семестра. Теперь этого списка на странице
+ *       нет, поэтому день собирается по «день недели + чётность», а чётность
+ *       берётся из строки «Сегодня: … верхняя неделя» (см.
+ *       {@link #parseWeekAnchor}).</li>
+ *   <li><b>Появилась третья чётность — «обе недели».</b> Такое занятие идёт
+ *       каждую неделю ({@link Lesson#bothWeeks}).</li>
+ *   <li><b>Аудитория пишется корпусом вперёд:</b> «У 167» вместо «167 Корпус У».</li>
+ * </ul>
+ *
+ * Прежняя вёрстка (строки {@code js-week-1/2} с датами) разбирается по-прежнему:
+ * она встречается в сохранённых страницах тестов, и если университет откатит
+ * изменение, приложение не сломается.
  *
  * Columns are located by their header text, so an added or reordered column
  * does not silently shift the data.
@@ -39,10 +59,14 @@ import java.util.regex.Pattern;
  */
 public final class ScheduleParser {
 
-    private static final Pattern DAY_BLOCK   = Pattern.compile("js-day-block");
     private static final Pattern HEADING     = Pattern.compile("<h[23][^>]*>(.*?)</h[23]>", Pattern.DOTALL);
     private static final Pattern COL_HEADER  = Pattern.compile("<th[^>]*scope=\"col\"[^>]*>(.*?)</th>", Pattern.DOTALL);
-    private static final Pattern ROW         = Pattern.compile("<tr[^>]*class=\"[^\"]*js-week-([12])[^\"]*\"[^>]*>(.*?)</tr>", Pattern.DOTALL);
+    /** Новая вёрстка: чётность в id строки. */
+    private static final Pattern ROW_BY_ID    = Pattern.compile(
+            "<tr[^>]*id=\"week-(up|down|both)-container\"[^>]*>(.*?)</tr>", Pattern.DOTALL);
+    /** Прежняя вёрстка: чётность в классе строки. */
+    private static final Pattern ROW_BY_CLASS = Pattern.compile(
+            "<tr[^>]*class=\"[^\"]*js-week-([12])[^\"]*\"[^>]*>(.*?)</tr>", Pattern.DOTALL);
     private static final Pattern CELL        = Pattern.compile("<t([hd])([^>]*)>(.*?)</t\\1>", Pattern.DOTALL);
     private static final Pattern PERSON_LINK = Pattern.compile("/ru/viewperson/(\\d+)/");
     private static final Pattern GROUP_LINK  = Pattern.compile("<a[^>]+href=\"/ru/viewschedule_new/(\\d+)/\"[^>]*>(.*?)</a>", Pattern.DOTALL);
@@ -55,7 +79,12 @@ public final class ScheduleParser {
     private static final Pattern CARD_TYPE   = Pattern.compile("<small[^>]*class=\"text-muted\"[^>]*>(.*?)</small>", Pattern.DOTALL);
     private static final Pattern CARD_PERSON = Pattern.compile("<a[^>]+href=[\"']/ru/viewperson/(\\d+)/[\"'][^>]*>(.*?)</a>", Pattern.DOTALL);
     private static final Pattern WEEK_CLASS  = Pattern.compile("js-week-([12])");
+    private static final Pattern WEEK_ID     = Pattern.compile("id=\"week-(up|down|both)-container\"");
     private static final Pattern BR          = Pattern.compile("(?i)<br\\s*/?>");
+    /** «Сегодня: 20 Сентября 2026 года, Воскресенье, верхняя неделя». */
+    private static final Pattern TODAY       = Pattern.compile(
+            "Сегодня:\\s*(\\d{1,2})\\s+(\\p{L}+)\\s+(\\d{4})[^<]*?(верхн|нижн)",
+            Pattern.CASE_INSENSITIVE);
     /** "Фамилия Имя Отчество" or "Фамилия И О" — used to tell a teacher from a remark. */
     private static final Pattern FIO         = Pattern.compile("^\\p{Lu}[\\p{L}-]+(\\s+\\p{Lu}[\\p{L}]*\\.?){1,3}$");
 
@@ -77,7 +106,7 @@ public final class ScheduleParser {
     }
 
     /**
-     * "Расписание занятий группы 12826-11" -&gt; "12826-11".
+     * "Расписание занятий группы 12226-11" -&gt; "12226-11".
      *
      * Teacher pages are headed "Расписание занятий преподаватель" with no name,
      * so this returns "" there and the caller falls back to the teacher named
@@ -101,6 +130,28 @@ public final class ScheduleParser {
         return "";
     }
 
+    /**
+     * Чётность текущей недели прямо со страницы: «Сегодня: 20 Сентября 2026
+     * года, Воскресенье, верхняя неделя».
+     *
+     * Это единственный машиночитаемый признак чётности, оставшийся после
+     * смены вёрстки, — и заодно самый надёжный: его пишет сам университет,
+     * поэтому он переживает и праздники, и сдвиги цикла между семестрами.
+     *
+     * @return якорь чётности или null, если строки на странице нет
+     */
+    public static WeekParity parseWeekAnchor(String html) {
+        Matcher m = TODAY.matcher(html);
+        if (!m.find()) return null;
+        int month = Dates.monthNumber(m.group(2));
+        if (month == 0) return null;
+        int day = Integer.parseInt(m.group(1));
+        int year = Integer.parseInt(m.group(3));
+        if (day < 1 || day > 31 || year < 2000 || year > 2200) return null;
+        return WeekParity.fromSite(Dates.toEpochDay(year, month, day),
+                m.group(4).equalsIgnoreCase("верхн"));
+    }
+
     // -------------------------------------------------------------- schedule
 
     /** Lessons of a group or teacher page: table view, card view as fallback. */
@@ -119,21 +170,42 @@ public final class ScheduleParser {
         for (String block : dayBlocks(section)) {
             String day = firstHeading(block);
             int[] col = columns(block);
-            Matcher row = ROW.matcher(block);
+            int before = out.size();
+
+            Matcher row = ROW_BY_ID.matcher(block);
             while (row.find()) {
                 Lesson l = parseRow(row.group(2), col);
                 if (l == null) continue;
                 l.day = day;
-                l.upper = "1".equals(row.group(1));
+                setWeek(l, row.group(1));
+                out.add(l);
+            }
+            if (out.size() > before) continue;
+
+            Matcher old = ROW_BY_CLASS.matcher(block);     // вёрстка до 15.09.2026
+            while (old.find()) {
+                Lesson l = parseRow(old.group(2), col);
+                if (l == null) continue;
+                l.day = day;
+                l.upper = "1".equals(old.group(1));
                 out.add(l);
             }
         }
         return out;
     }
 
-    /** Column indexes {time, dates, room, group, subject, teacher} for one table. */
+    /** up / down / both — «обе недели» означает занятие каждую неделю. */
+    private static void setWeek(Lesson l, String kind) {
+        l.bothWeeks = "both".equals(kind);
+        l.upper = !"down".equals(kind);
+    }
+
+    /**
+     * Column indexes {time, dates, room, group, subject, teacher} for one table;
+     * -1 means the table has no such column (дат на странице больше нет).
+     */
     private static int[] columns(String block) {
-        int[] idx = {0, 2, 3, 4, 5, 6};              // the site's current layout
+        int[] idx = {0, -1, 2, 3, 4, 5};             // the site's current layout
         Matcher m = COL_HEADER.matcher(block);
         int i = 0;
         while (m.find() && i < 16) {
@@ -161,8 +233,10 @@ public final class ScheduleParser {
 
         Lesson l = new Lesson();
         l.time = time(cell(body, col[0]));
-        l.dateRange = Html.text(cell(body, col[1]));
-        addDates(l, Html.attr(cell(attrs, col[1]), "title"));
+        if (col[1] >= 0) {
+            l.dateRange = Html.text(cell(body, col[1]));
+            addDates(l, Html.attr(cell(attrs, col[1]), "title"));
+        }
         l.room = Html.text(cell(body, col[2]));
         l.group = Html.text(cell(body, col[3]));
 
@@ -196,17 +270,19 @@ public final class ScheduleParser {
         String section = section(html, "id=\"card-container\"");
         for (String block : dayBlocks(section)) {
             String day = firstHeading(block);
-            for (String card : split(block, "js-time-card")) {
+            for (String card : timeCards(block)) {
                 String time = time(card);
                 if (time.isEmpty()) continue;
                 for (String week : split(card, "js-week-container")) {
-                    Matcher w = WEEK_CLASS.matcher(week);
-                    if (!w.find()) continue;
                     Lesson l = parseCardLesson(week);
                     if (l == null) continue;
+                    Matcher byId = WEEK_ID.matcher(week);
+                    Matcher byClass = WEEK_CLASS.matcher(week);
+                    if (byId.find()) setWeek(l, byId.group(1));
+                    else if (byClass.find()) l.upper = "1".equals(byClass.group(1));
+                    else continue;
                     l.day = day;
                     l.time = time;
-                    l.upper = "1".equals(w.group(1));
                     out.add(l);
                 }
             }
@@ -263,17 +339,21 @@ public final class ScheduleParser {
         return end < 0 ? html.substring(start) : html.substring(start, end);
     }
 
-    /** The section split into per-weekday blocks. */
+    /**
+     * The section split into per-weekday blocks.
+     *
+     * Новая вёрстка обрамляет каждый день карточкой {@code <div class="card my-4">},
+     * прежняя помечала блок класcом {@code js-day-block}.
+     */
     private static List<String> dayBlocks(String section) {
-        List<String> out = new ArrayList<>();
-        Matcher m = DAY_BLOCK.matcher(section);
-        int prev = -1;
-        while (m.find()) {
-            if (prev >= 0) out.add(section.substring(prev, m.start()));
-            prev = m.start();
-        }
-        if (prev >= 0) out.add(section.substring(prev));
-        return out;
+        List<String> out = split(section, "js-day-block");
+        return out.isEmpty() ? split(section, "<div class=\"card my-4\">") : out;
+    }
+
+    /** Карточки времени внутри дня: прежний маркер или заголовок со временем. */
+    private static List<String> timeCards(String block) {
+        List<String> out = split(block, "js-time-card");
+        return out.isEmpty() ? split(block, "<div class=\"col\">") : out;
     }
 
     private static List<String> split(String block, String marker) {

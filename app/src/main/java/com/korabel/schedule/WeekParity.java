@@ -7,16 +7,22 @@ import java.util.Map;
 /**
  * Which calendar weeks are верхняя and which are нижняя.
  *
- * The schedule pages never state the parity of the current week in a
- * machine-readable way, but they do not have to: every lesson row is tagged
- * js-week-1 (верхняя) or js-week-2 (нижняя) and carries the exact dates it
- * happens on. So the parity of a real calendar week can be *derived from the
- * data itself* — the app never depends on a hard-coded anchor that goes stale
- * after a holiday shifts the cycle.
+ * Источников два, в порядке доверия:
  *
- * The anchor is the week with the strongest agreement among its lessons;
- * {@link #agreement()} reports how consistently the rest of the semester
- * matches it, which is what the UI uses to decide whether to trust the badge.
+ * <ol>
+ *   <li><b>Строка самого сайта</b> «Сегодня: 20 Сентября 2026 года,
+ *       Воскресенье, верхняя неделя» ({@link #fromSite}). Её пишет
+ *       университет, поэтому она переживает и праздники, и сдвиги цикла между
+ *       семестрами. С 15.09.2026 это единственный машиночитаемый признак на
+ *       странице.</li>
+ *   <li><b>Даты самих занятий</b> ({@link #derive}) — так считалось раньше,
+ *       когда каждая строка расписания несла список дат проведения. Эти данные
+ *       остались в сохранённом кэше, поэтому путь сохранён.</li>
+ * </ol>
+ *
+ * При выводе из дат якорем берётся неделя с самым уверенным большинством;
+ * {@link #agreement()} показывает, насколько остальной семестр с ней согласен —
+ * по этому числу интерфейс решает, доверять ли плашке.
  */
 public final class WeekParity {
 
@@ -41,6 +47,15 @@ public final class WeekParity {
 
     public static WeekParity fallback() {
         return new WeekParity(FALLBACK_MONDAY, true, 0.0, 0);
+    }
+
+    /**
+     * Якорь со страницы: «сегодня такое-то число, неделя верхняя».
+     *
+     * Сайт знает чётность точно, спорить с ним не о чем — согласие 1.0.
+     */
+    public static WeekParity fromSite(long day, boolean upper) {
+        return new WeekParity(day, upper, 1.0, 1);
     }
 
     /**
@@ -87,6 +102,11 @@ public final class WeekParity {
     public boolean isUpper(long epochDay) {
         long weeksApart = (Dates.monday(epochDay) - anchorMonday) / 7;
         return (Math.floorMod(weeksApart, 2) == 0) == anchorUpper;
+    }
+
+    /** Понедельник недели, от которой отсчитывается цикл. */
+    public long anchorMonday() {
+        return anchorMonday;
     }
 
     /** Share of dated weeks that agree with the anchor (1.0 = a perfect cycle). */

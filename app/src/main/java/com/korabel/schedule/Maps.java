@@ -78,23 +78,40 @@ final class Maps {
 
     private Maps() { }
 
-    /** «167 Корпус У» → корпус У; null, если корпус не назван или незнаком. */
+    /**
+     * Корпус по строке аудитории.
+     *
+     * С 15.09.2026 сайт пишет корпус первым: «У 167». Прежняя форма
+     * «167 Корпус У» осталась в сохранённых данных, поэтому понимаются обе.
+     */
     static Building ofRoom(String room) {
-        if (room == null) return null;
+        if (room == null || room.isEmpty()) return null;
         int at = room.indexOf("Корпус");
-        if (at < 0) return null;
-        for (int i = at + 6; i < room.length(); i++) {
-            char c = room.charAt(i);
-            if (c == ' ' || c == '.') continue;
-            for (Building b : TABLE) if (b.letter.charAt(0) == c) return b;
+        if (at >= 0) {
+            for (int i = at + 6; i < room.length(); i++) {
+                char c = room.charAt(i);
+                if (c == ' ' || c == '.') continue;
+                return byLetter(c);
+            }
             return null;
         }
+        // «У 167», «А Актовый зал» — буква корпуса, пробел, дальше помещение
+        return room.length() > 1 && room.charAt(1) == ' ' ? byLetter(room.charAt(0)) : null;
+    }
+
+    private static Building byLetter(char letter) {
+        for (Building b : TABLE) if (b.letter.charAt(0) == letter) return b;
         return null;
     }
 
-    /** Этаж по первой цифре номера: «509 Корпус Г» → 5; «каф.ИЯ …» → -1. */
+    /**
+     * Этаж по первой цифре номера аудитории: «У 167» и «167 Корпус У» → 1,
+     * «У каф.ИЯ» → -1.
+     */
     static int floorOf(String room) {
-        for (int i = 0; i < room.length(); i++) {
+        if (room == null) return -1;
+        int from = room.length() > 1 && room.charAt(1) == ' ' ? 2 : 0;
+        for (int i = from; i < room.length(); i++) {
             char c = room.charAt(i);
             if (c >= '0' && c <= '9') return c - '0';
             if (c == ' ') break;

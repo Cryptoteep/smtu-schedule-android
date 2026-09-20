@@ -48,7 +48,12 @@ public final class Smtu {
     private static final int CONNECT_TIMEOUT = 9000;
     private static final int READ_TIMEOUT = 20000;
     private static final int MAX_BYTES = 8 * 1024 * 1024;
-    private static final int CACHE_SCHEMA = 2;
+    /**
+     * Схема 3 — вёрстка сайта от 15.09.2026: без точных дат, с «обеими неделями»
+     * и аудиторией вида «У 167». Старый кэш не доливается к новому, а
+     * выбрасывается: ключи занятий изменились, и слияние удвоило бы расписание.
+     */
+    private static final int CACHE_SCHEMA = 3;
     private static final int MAX_TEACHER_CACHES = 12;
 
     /**
@@ -131,7 +136,8 @@ public final class Smtu {
         if (lessons.isEmpty()) throw new IOException("расписание на сайте пусто");
         String title = ScheduleParser.parseTitle(html);
         if (title.isEmpty() && teacher) title = lessons.get(0).teacher;
-        return cached.mergedWith(new Schedule(lessons, title, System.currentTimeMillis()));
+        return cached.mergedWith(new Schedule(lessons, title, System.currentTimeMillis(),
+                false, ScheduleParser.parseWeekAnchor(html)));
     }
 
     /**
@@ -147,7 +153,8 @@ public final class Smtu {
         List<Lesson> lessons = Mirror.parseSchedule(res.body);
         if (lessons.isEmpty()) throw new IOException("в срезе нет этого расписания");
         long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
-        return cached.mergedWith(new Schedule(lessons, Mirror.parseTitle(res.body), at, true));
+        return cached.mergedWith(new Schedule(lessons, Mirror.parseTitle(res.body), at, true,
+                Mirror.parseAnchor(res.body)));
     }
 
     // ------------------------------------------------------------------- race
@@ -342,7 +349,12 @@ public final class Smtu {
             List<Lesson> lessons = new ArrayList<>(arr == null ? 0 : arr.length());
             for (int i = 0; arr != null && i < arr.length(); i++)
                 lessons.add(fromJson(arr.getJSONObject(i)));
-            return new Schedule(lessons, root.optString("title"), root.optLong("fetchedAt"));
+            WeekParity anchor = null;
+            if (root.has("anchorDay"))
+                anchor = WeekParity.fromSite(root.optLong("anchorDay"),
+                        root.optBoolean("anchorUpper", true));
+            return new Schedule(lessons, root.optString("title"), root.optLong("fetchedAt"),
+                    false, anchor);
         } catch (Exception e) {
             return Schedule.EMPTY;
         }
@@ -357,6 +369,9 @@ public final class Smtu {
                     .put("title", s.title())
                     .put("fetchedAt", s.fetchedAt())
                     .put("lessons", arr);
+            if (s.parity().isDerived())
+                root.put("anchorDay", s.parity().anchorMonday())
+                    .put("anchorUpper", s.parity().isUpper(s.parity().anchorMonday()));
             write(scheduleFile(ctx, teacher, id), root.toString());
         } catch (Exception ignored) {
             // a schedule that fails to cache is still usable in memory
@@ -368,6 +383,7 @@ public final class Smtu {
         for (long d : l.days) days.put(d);
         return new JSONObject()
                 .put("day", l.day).put("time", l.time).put("upper", l.upper)
+                .put("both", l.bothWeeks)
                 .put("subject", l.subject).put("type", l.type).put("room", l.room)
                 .put("teacher", l.teacher).put("teacherId", l.teacherId)
                 .put("group", l.group).put("note", l.note)
@@ -379,6 +395,7 @@ public final class Smtu {
         l.day = o.optString("day");
         l.time = o.optString("time");
         l.upper = o.optBoolean("upper");
+        l.bothWeeks = o.optBoolean("both");
         l.subject = o.optString("subject");
         l.type = o.optString("type");
         l.room = o.optString("room");
