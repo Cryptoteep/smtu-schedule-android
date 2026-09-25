@@ -860,16 +860,13 @@ public final class MainActivity extends Activity {
         String[] items = new String[lessons.size()];
         for (int i = 0; i < lessons.size(); i++) {
             Lesson l = lessons.get(i);
-            String when = l.days.isEmpty() ? l.day
-                    : Dates.DAY_SHORT[Dates.dayOfWeek(l.days.get(0))] + " " + Dates.formatRu(l.days.get(0));
-            items[i] = when + " · " + l.oneLine(withSubject);
+            items[i] = when(l) + " · " + l.oneLine(withSubject);
         }
         new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setItems(items, (d, which) -> {
-                    Lesson l = lessons.get(which);
-                    long day = l.days.isEmpty() ? shownDay() : l.days.get(0);
-                    goTo(day);
+                    long day = dayOf(lessons.get(which));
+                    if (day != Dates.NO_DATE) goTo(day);
                 })
                 .setNegativeButton("Закрыть", null)
                 .show();
@@ -918,11 +915,7 @@ public final class MainActivity extends Activity {
                 found.clear();
                 found.addAll(schedule.search(e.toString()));
                 adapter.clear();
-                for (Lesson l : found) {
-                    String when = l.days.isEmpty() ? l.day
-                            : Dates.DAY_SHORT[Dates.dayOfWeek(l.days.get(0))] + " " + Dates.formatRu(l.days.get(0));
-                    adapter.add(when + " · " + l.oneLine());
-                }
+                for (Lesson l : found) adapter.add(when(l) + " · " + l.oneLine());
                 adapter.notifyDataSetChanged();
                 hint.setText(e.length() == 0 ? "Введите запрос"
                         : found.size() + " " + plural(found.size(), "совпадение", "совпадения", "совпадений"));
@@ -932,11 +925,32 @@ public final class MainActivity extends Activity {
 
         results.setOnItemClickListener((parent, view, position, id) -> {
             Lesson l = found.get(position);
+            long day = dayOf(l);
+            if (day == Dates.NO_DATE) {
+                toast("В загруженном расписании это занятие больше не встречается");
+                return;
+            }
             dialog.dismiss();
-            goTo(l.days.isEmpty() ? shownDay() : l.days.get(0));
-            showLesson(l, l.days.isEmpty() ? shownDay() : l.days.get(0));
+            goTo(day);
+            showLesson(l, day);
         });
         dialog.show();
+    }
+
+    /**
+     * День, в который открыть найденное занятие: ближайший настоящий, считая от
+     * сегодня. Не «тот, что сейчас на экране» — иначе пара понедельника
+     * открывалась бы с подписью «среда».
+     */
+    private long dayOf(Lesson l) {
+        return schedule.occurrenceNear(l, Dates.today());
+    }
+
+    /** «Пн 28.09» — когда ближайшее занятие; день недели, если дат не знаем. */
+    private String when(Lesson l) {
+        long day = dayOf(l);
+        if (day == Dates.NO_DATE) return l.day;
+        return Dates.DAY_SHORT[Dates.dayOfWeek(day)] + " " + Dates.formatRu(day);
     }
 
     private void showMenu() {

@@ -159,6 +159,31 @@ public final class Schedule {
         return Dates.NO_DATE;
     }
 
+    /**
+     * Ближайший к {@code from} день, когда это занятие действительно идёт:
+     * сначала вперёд, потом назад, в пределах расписания.
+     *
+     * Нужно поиску и списку «все занятия по предмету». Пока у занятий были
+     * точные даты, достаточно было взять первую; с 15.09.2026 дат нет, и
+     * интерфейс открывал найденную пару в тот день, что был на экране, —
+     * лекцию понедельника с подписью «среда». Заодно учитывается чётность:
+     * занятие нижней недели не откроется на верхней.
+     *
+     * @return день или {@link Dates#NO_DATE}, если в пределах расписания его нет
+     */
+    public long occurrenceNear(Lesson lesson, long from) {
+        if (!lesson.days.isEmpty()) {
+            for (long d : lesson.days) if (d >= from) return d;
+            return lesson.days.get(lesson.days.size() - 1);
+        }
+        // цикл «день недели + чётность» повторяется за две недели
+        for (int i = 0; i < 14; i++)
+            if (on(from + i).contains(lesson)) return from + i;
+        for (int i = 1; i <= 14; i++)
+            if (on(from - i).contains(lesson)) return from - i;
+        return Dates.NO_DATE;
+    }
+
     /** Every occurrence of one subject. */
     public List<Lesson> ofSubject(String subject) {
         List<Lesson> out = new ArrayList<>();
