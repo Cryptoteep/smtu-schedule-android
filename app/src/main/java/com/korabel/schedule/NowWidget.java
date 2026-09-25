@@ -49,7 +49,7 @@ public final class NowWidget extends AppWidgetProvider {
                 break;
             case Now.BREAK:
                 label = "СЛЕДУЮЩАЯ";
-                extra = "через " + Now.human(st.remainSec);
+                extra = Now.untilNext(st);
                 break;
             default:
                 label = Now.dayLabel(st);

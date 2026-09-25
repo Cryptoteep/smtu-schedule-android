@@ -27,6 +27,18 @@ public final class Now {
     private static final int DAY_START_MIN = 8 * 60;   // с чего считать «утро» для кольца
     private static final int SEC_PER_DAY = 24 * 3600;
 
+    /**
+     * Ближе этого к паре виджеты считают минуты, дальше — пишут время начала.
+     *
+     * Минуты на виджете верны, только если его будят каждую минуту, а будить
+     * телефон ежеминутно за три часа до пары незачем. Поэтому издалека виджет
+     * показывает то, что не устаревает («в 13:30»), и просыпается ровно тогда,
+     * когда пора начинать отсчёт.
+     */
+    public static final int COUNTDOWN_SEC = 90 * 60;
+    /** Чаще будить незачем: система всё равно сдвинет неточный будильник. */
+    private static final int MIN_WAKE_SEC = 15;
+
     public static final class State {
         public int kind = NONE;
         /** Идущая пара (ONGOING) — иначе null. */
@@ -112,6 +124,44 @@ public final class Now {
             }
         }
         return st;
+    }
+
+    /** Идёт ли сейчас поминутный отсчёт — во время пары или незадолго до неё. */
+    public static boolean countingDown(State st) {
+        return st.kind == ONGOING || (st.kind == BREAK && st.remainSec <= COUNTDOWN_SEC);
+    }
+
+    /**
+     * Через сколько секунд картинка виджета изменится и его пора будить.
+     *
+     * Во время отсчёта — каждую минуту. В длинной перемене — к началу отсчёта,
+     * а не к началу пары: иначе последние полтора часа виджет стоял бы с
+     * «в 13:30», а кольцо перемены не заполнялось. После занятий — к следующей
+     * паре. И никогда не позже полуночи: она меняет «завтра» на «сегодня».
+     */
+    public static int nextWakeSec(State st) {
+        int toMidnight = SEC_PER_DAY - st.nowSec + 60;
+        int wake;
+        switch (st.kind) {
+            case ONGOING:
+                wake = 60;
+                break;
+            case BREAK:
+                wake = st.remainSec <= COUNTDOWN_SEC ? 60 : st.remainSec - COUNTDOWN_SEC;
+                break;
+            case AFTER:
+                wake = st.remainSec;
+                break;
+            default:
+                wake = toMidnight;
+        }
+        return Math.max(MIN_WAKE_SEC, Math.min(wake, toMidnight));
+    }
+
+    /** «через 25 мин» перед парой, «в 13:30» — когда до неё ещё далеко. */
+    public static String untilNext(State st) {
+        if (st.next == null) return "";
+        return countingDown(st) ? "через " + human(st.remainSec) : "в " + startOf(st.next.time);
     }
 
     // --------------------------------------------------------------- вывод

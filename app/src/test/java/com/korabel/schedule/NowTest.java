@@ -124,4 +124,49 @@ public class NowTest {
         assertEquals("415", Now.roomShort("415"));
         assertEquals("", Now.roomShort(""));
     }
+
+    // ------------------------------------------------ когда будить виджеты
+
+    @Test public void duringALessonWidgetsWakeEveryMinute() {
+        Now.State st = Now.compute(monday(), MON, at(8, 45));
+        assertEquals(60, Now.nextWakeSec(st));
+        assertTrue(Now.countingDown(st));
+    }
+
+    /**
+     * Раньше будильник в длинной перемене спал до самого начала пары, и
+     * последние полтора часа виджет не показывал отсчёта вовсе.
+     */
+    @Test public void aLongBreakWakesWhenTheCountdownShouldStart() {
+        Now.State st = Now.compute(monday(), MON, at(11, 45));   // История в 13:30
+        assertEquals(Now.BREAK, st.kind);
+        assertEquals("до пары 105 мин, отсчёт с 12:00", 15 * 60, Now.nextWakeSec(st));
+        assertEquals("издалека — время, которое не устареет", "в 13:30", Now.untilNext(st));
+
+        Now.State close = Now.compute(monday(), MON, at(12, 30));
+        assertTrue(Now.countingDown(close));
+        assertEquals(60, Now.nextWakeSec(close));
+        assertEquals("через 1 ч", Now.untilNext(close));
+    }
+
+    @Test public void theMorningBeforeTheFirstLessonSleepsUntilTheCountdown() {
+        Now.State st = Now.compute(monday(), MON, at(5, 0));    // Химия в 08:30
+        assertEquals(Now.BREAK, st.kind);
+        assertEquals(2 * 3600, Now.nextWakeSec(st));
+    }
+
+    @Test public void afterClassesWidgetsSleepUntilMidnightAtMost() {
+        Now.State st = Now.compute(monday(), MON, at(20, 0));
+        assertEquals(Now.AFTER, st.kind);
+        assertEquals("полночь меняет «завтра» на «сегодня»",
+                4 * 3600 + 60, Now.nextWakeSec(st));
+    }
+
+    @Test public void nothingAheadStillWakesAtMidnight() {
+        Now.State st = Now.compute(Schedule.EMPTY, MON, at(23, 59) + 50);
+        assertEquals(Now.NONE, st.kind);
+        assertEquals("будим сразу после полуночи",
+                70, Now.nextWakeSec(st));
+        assertEquals("", Now.untilNext(st));
+    }
 }

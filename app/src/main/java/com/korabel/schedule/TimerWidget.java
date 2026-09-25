@@ -39,7 +39,7 @@ public final class TimerWidget extends AppWidgetProvider {
                 brk = View.VISIBLE;
                 rv.setInt(R.id.wt_ring_break, "setProgress",
                         Widgets.percent(st.gapSec - st.remainSec, st.gapSec));
-                if (st.remainSec > 90 * 60) {          // далеко — тикать незачем
+                if (!Now.countingDown(st)) {           // далеко — тикать незачем
                     main = Now.startOf(st.next.time);
                     sub = "начало";
                 } else {
@@ -72,7 +72,7 @@ public final class TimerWidget extends AppWidgetProvider {
             case Now.ONGOING:
                 return "Идёт " + st.current.subject + ", осталось " + Now.human(st.remainSec);
             case Now.BREAK:
-                return "Следующая пара " + st.next.subject + " через " + Now.human(st.remainSec);
+                return "Следующая пара " + st.next.subject + " " + Now.untilNext(st);
             case Now.AFTER:
                 return (st.isTomorrow() ? "Завтра" : Now.dayLabel(st)) + " в "
                         + Now.startOf(st.next.time) + ": " + st.next.subject;
