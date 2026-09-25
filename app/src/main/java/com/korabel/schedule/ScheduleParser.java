@@ -242,7 +242,7 @@ public final class ScheduleParser {
 
         // subject cell: <span>Предмет</span><br><small class="text-muted">Тип</small>
         //               [<br><small>Преподаватель или примечание</small>]
-        List<String> lines = lines(cell(body, col[4]));
+        List<String> lines = typeSecond(lines(cell(body, col[4])));
         if (!lines.isEmpty()) l.subject = lines.get(0);
         if (lines.size() > 1) l.type = lines.get(1);
         for (int i = 2; i < lines.size(); i++) assignExtra(l, lines.get(i));
@@ -404,6 +404,29 @@ public final class ScheduleParser {
             if (d != Dates.NO_DATE && !l.days.contains(d)) l.days.add(d);
         }
         Collections.sort(l.days);
+    }
+
+    private static final Pattern LESSON_TYPE = Pattern.compile(
+            "(?iu)(лекци|практическ|лабораторн|семинар|консультаци|экзамен|зач[её]т)[^,;]{0,25}");
+
+    /**
+     * Тип занятия — вторая строка ячейки, а не первая.
+     *
+     * У части строк сайт оставляет предмет пустым, и первой непустой строкой
+     * оказывается «Лекция», а за ней — то, что на деле и есть название
+     * («Военная подготовка», «Довузовская подготовка»). В срезе от 24.09.2026
+     * таких было 15 из 10 248 — и в расписании висела пара «Лекция» с типом
+     * «Военная подготовка». Строки меняются местами, только если первая похожа
+     * на тип, а вторая — нет. То же правило живёт в docs/app/parser.js.
+     */
+    static List<String> typeSecond(List<String> lines) {
+        if (lines.size() > 1 && isLessonType(lines.get(0)) && !isLessonType(lines.get(1)))
+            Collections.swap(lines, 0, 1);
+        return lines;
+    }
+
+    static boolean isLessonType(String s) {
+        return LESSON_TYPE.matcher(s).matches();
     }
 
     /** Cell text split on &lt;br&gt;, tags stripped, empties dropped. */

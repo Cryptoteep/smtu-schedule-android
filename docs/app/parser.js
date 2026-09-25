@@ -66,6 +66,7 @@ function parseSchedule(html) {
         })
         .filter(Boolean);
       if (!lines.length) continue;
+      typeSecond(lines);
 
       const timeMatch = text(col.time).match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
       const lesson = {
@@ -111,6 +112,20 @@ function parseSchedule(html) {
     }
   }
   return out;
+}
+
+const LESSON_TYPE = /^(лекци|практическ|лабораторн|семинар|консультаци|экзамен|зач[её]т)[^,;]{0,25}$/iu;
+
+/**
+ * Тип занятия — вторая строка ячейки, а не первая. У части строк сайт
+ * оставляет предмет пустым, и первой оказывается «Лекция», а за ней — само
+ * название («Военная подготовка»). Меняем местами, только если первая похожа
+ * на тип, а вторая — нет. То же правило — в ScheduleParser.typeSecond.
+ */
+function typeSecond(lines) {
+  if (lines.length > 1 && LESSON_TYPE.test(lines[0]) && !LESSON_TYPE.test(lines[1]))
+    [lines[0], lines[1]] = [lines[1], lines[0]];
+  return lines;
 }
 
 /** Чётность строки: id с 15.09.2026, класс — прежняя вёрстка. */

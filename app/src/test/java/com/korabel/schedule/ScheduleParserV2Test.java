@@ -8,6 +8,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -144,5 +146,33 @@ public class ScheduleParserV2Test {
     @Test public void saysNothingWhenThePageHasNoAnchor() {
         assertNull(ScheduleParser.parseWeekAnchor("<html><body>ничего</body></html>"));
         assertNull(ScheduleParser.parseWeekAnchor("Сегодня: 32 Кактября 2026 года, верхняя неделя"));
+    }
+
+    /** Строка с пустым предметом: первой идёт «Лекция», название — за ней. */
+    @Test public void aTypePrintedFirstIsNotTakenForTheSubject() {
+        String row = "<table><thead><tr><th scope=\"col\">Время</th><th scope=\"col\">Неделя</th>"
+                + "<th scope=\"col\">Аудитория</th><th scope=\"col\">Группа</th>"
+                + "<th scope=\"col\">Предмет</th><th scope=\"col\">Преподаватель</th></tr></thead>"
+                + "<tr class=\"js-week-container\" id=\"week-both-container\"><th>17:20-18:50</th><td></td>"
+                + "<td>У 443</td><td>1101</td>"
+                + "<td><span></span><br><small class=\"text-muted\">Лекция</small>"
+                + "<br><small>Военная подготовка</small></td><td></td></tr></table>";
+        String page = "<div id=\"table-container\"><div class=\"js-day-block\"><h3>Понедельник</h3>"
+                + row + "</div></div>";
+        List<Lesson> lessons = ScheduleParser.parseSchedule(page);
+        assertEquals(1, lessons.size());
+        assertEquals("Военная подготовка", lessons.get(0).subject);
+        assertEquals("Лекция", lessons.get(0).type);
+    }
+
+    @Test public void anOrdinarySubjectCellStaysAsItIs() {
+        assertEquals(Arrays.asList("Практическая психология", "Лекция"),
+                ScheduleParser.typeSecond(new ArrayList<>(
+                        Arrays.asList("Практическая психология", "Лекция"))));
+        assertEquals(Arrays.asList("Физика", "Лабораторное занятие"),
+                ScheduleParser.typeSecond(new ArrayList<>(
+                        Arrays.asList("Физика", "Лабораторное занятие"))));
+        assertEquals(Arrays.asList("Физика", "Лекция"),
+                ScheduleParser.typeSecond(new ArrayList<>(Arrays.asList("Лекция", "Физика"))));
     }
 }
