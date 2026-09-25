@@ -1,13 +1,12 @@
 /*
  * Расписание СПбГМТУ — веб-версия.
  *
- * Тот же подход, что и в Android-приложении: читаем табличный вид страницы
- * (только там у занятия указана группа), чётность недели выводим из точных дат
- * самих занятий, весь семестр держим в localStorage — дальше приложение
- * работает офлайн.
- *
- * У сайта университета нет ни API, ни CORS-заголовков, поэтому страницы идут
- * через прокси, который только пробрасывает запрос и добавляет CORS.
+ * Тот же подход, что и в Android-приложении, но без похода на сайт вуза: у него
+ * нет ни API, ни CORS-заголовков, поэтому расписания всех групп собирает
+ * GitHub Actions (tools/build-data.mjs) и кладёт рядом с этой страницей.
+ * Чётность недели берётся из строки «Сегодня: … верхняя неделя», которую
+ * сборщик переносит в JSON. Весь семестр держим в localStorage — дальше
+ * приложение работает офлайн.
  */
 'use strict';
 
@@ -111,12 +110,6 @@ async function fetchGroups() {
   return { groups: index.groups, updated: Date.parse(index.updated) || 0 };
 }
 
-/** Расписание одной группы. */
-async function fetchGroupSchedule(id) {
-  const box = await fetchJson('/g/' + id + '.json');
-  return { lessons: hydrate(box.lessons || []), title: box.name || '', at: Date.parse(box.updated) || 0 };
-}
-
 // --------------------------------------------------------------- состояние
 
 const state = {
@@ -131,7 +124,11 @@ const state = {
   mon: monday(today()),
   offset: dayOfWeek(today()),
   loading: false,
-  stale: false
+  stale: false,
+  // почему не удалось обновиться; пусто — удалось
+  failed: '',
+  // срез собран, но у группы в нём нет занятий
+  emptyOnSite: false
 };
 
 const $ = id => document.getElementById(id);
@@ -150,10 +147,15 @@ function loadCache(teacher, id) {
   } catch (e) { return null; }
 }
 
-function saveCache(teacher, id, lessons, title, anchor) {
+/**
+ * В кэш пишется время сбора среза, а не момент, когда его скачал браузер:
+ * иначе после перезагрузки без сети недельный срез выглядел бы как
+ * «обновлено сегодня».
+ */
+function saveCache(teacher, id, lessons, title, anchor, at) {
   try {
     localStorage.setItem(cacheKey(teacher, id),
-      JSON.stringify({ lessons, title, at: Date.now(), anchor }));
+      JSON.stringify({ lessons, title, at, anchor }));
   } catch (e) { /* переполнение хранилища — не беда, просто не кэшируем */ }
 }
 
@@ -176,6 +178,9 @@ async function load(teacher, id, name) {
   else setLessons([], name, 0);
 
   state.loading = true;
+  state.failed = '';
+  state.stale = false;
+  state.emptyOnSite = false;
   render();
   try {
     const box = await fetchJson('/' + (teacher ? 't' : 'g') + '/' + id + '.json');
@@ -183,18 +188,20 @@ async function load(teacher, id, name) {
     const title = box.name || name || '';
     const anchor = Number.isFinite(box.anchorDay)
       ? { day: box.anchorDay, upper: !!box.anchorUpper } : null;
-    state.stale = false;
     if (lessons.length) {
-      saveCache(teacher, id, lessons, title, anchor);
-      setLessons(lessons, title, await updatedAt(), anchor);
+      const at = await updatedAt();
+      saveCache(teacher, id, lessons, title, anchor, at);
+      setLessons(lessons, title, at, anchor);
     } else if (cached && cached.lessons.length) {
       // срез собрался пустым (так бывает, когда на сайте меняют вёрстку) —
       // молча показывать старое нечестно, поэтому отмечаем это в строке снизу
       state.stale = true;
-      render();
+    } else {
+      state.emptyOnSite = true;
     }
   } catch (e) {
-    if (!cached) toast('Не удалось загрузить: ' + e.message);
+    // сохранённое остаётся на экране, но строка снизу говорит, что оно не обновилось
+    state.failed = e.message;
   } finally {
     state.loading = false;
     render();
@@ -250,6 +257,21 @@ function semester() {
 function covered(ed) {
   const sem = semester();
   return !sem || (ed >= sem.first && ed <= sem.last);
+}
+
+/**
+ * Ближайший к from день, когда занятие действительно идёт (сначала вперёд).
+ * Нужно поиску: дат у занятий с 15.09.2026 нет, и без этого по найденной паре
+ * нельзя было перейти никуда.
+ */
+function occurrenceNear(l, from) {
+  if (l.days.length) {
+    const next = l.days.find(d => d >= from);
+    return next !== undefined ? next : l.days[l.days.length - 1];
+  }
+  for (let i = 0; i < 14; i++) if (lessonsOn(from + i).includes(l)) return from + i;
+  for (let i = 1; i <= 14; i++) if (lessonsOn(from - i).includes(l)) return from - i;
+  return null;
 }
 
 function shownDay() { return state.dayMode ? state.mon + state.offset : state.mon; }
@@ -355,8 +377,10 @@ function renderBody() {
   if (!state.lessons.length) {
     main.innerHTML = '<div class="hint">' +
       (state.loading ? 'Загружаю расписание…'
-                     : state.groupId ? 'Расписание не загружено.\nНажмите ⟳ при подключении к сети.'
-                                     : 'Выберите свою группу.') + '</div>';
+       : state.emptyOnSite ? 'На сайте университета у этого расписания нет ни одного занятия.'
+       : state.failed ? 'Не удалось загрузить: ' + escapeHtml(state.failed) + '.\nНажмите ⟳, чтобы попробовать снова.'
+       : state.groupId ? 'Расписание не загружено.\nНажмите ⟳ при подключении к сети.'
+                       : 'Выберите свою группу.') + '</div>';
     return;
   }
 
@@ -432,8 +456,9 @@ function renderStatus() {
         : formatRu(toEpochDay(d.getFullYear(), d.getMonth() + 1, d.getDate()));
       parts.push('обновлено ' + when);
     }
-    if (!state.parity.derived) parts.push('чётность недель неточная');
+    if (!state.parity.derived) parts.push('чётность недели не подтверждена сайтом');
     if (state.stale) parts.push('свежие данные не пришли — показано сохранённое');
+    if (state.failed) parts.push('обновить не удалось (' + state.failed + ') — показано сохранённое');
   }
   $('status').textContent = parts.join(' · ');
 }
@@ -445,8 +470,8 @@ function plural(n, one, few, many) {
   return many;
 }
 
-function toast(text) {
-  $('status').textContent = text;
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }
 
 // --------------------------------------------------------------- диалоги
@@ -551,19 +576,19 @@ function openFinder() {
       (l.subject + ' ' + l.teacher + ' ' + l.room + ' ' + l.type + ' ' + l.group + ' ' + l.note)
         .toLowerCase().includes(q)).slice(0, 60);
     for (const l of found) {
-      const when = l.days.length ? DAY_SHORT[dayOfWeek(l.days[0])] + ' ' + formatRu(l.days[0]) : l.day;
+      const day = occurrenceNear(l, today());
+      const when = day !== null ? DAY_SHORT[dayOfWeek(day)] + ' ' + formatRu(day) : l.day;
       const b = document.createElement('button');
       b.textContent = when + ' · ' + l.time.replace(' - ', ' – ') + ' · ' + l.subject +
         (l.room ? ' · ' + l.room : '') + (l.teacher ? ' · ' + l.teacher : '');
+      b.disabled = day === null;
       b.onclick = () => {
         dlg.close();
-        if (l.days.length) {
-          state.dayMode = true;
-          state.mon = monday(l.days[0]);
-          state.offset = dayOfWeek(l.days[0]);
-          render();
-          showLesson(l, l.days[0]);
-        }
+        state.dayMode = true;
+        state.mon = monday(day);
+        state.offset = dayOfWeek(day);
+        render();
+        showLesson(l, day);
       };
       results.appendChild(b);
     }
@@ -599,7 +624,8 @@ $('today').onclick = goToday;
 $('find').onclick = openFinder;
 $('reload').onclick = () => {
   if (state.teacherId) load(true, state.teacherId, state.teacherName);
-  else if (state.groupId) load(false, state.groupId, state.groupName);
+  else suggestInstall();
+if (state.groupId) load(false, state.groupId, state.groupName);
 };
 $('titleBox').onclick = () => {
   if (state.teacherId) {
@@ -633,7 +659,30 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 if ('serviceWorker' in navigator)
   navigator.serviceWorker.register('sw.js').catch(() => { /* не критично */ });
 
+/*
+ * Подсказка «на экран Домой» для iPhone и iPad.
+ *
+ * Это не косметика. Safari не предлагает установку сам, а localStorage сайта,
+ * который не открывали семь дней работы браузера, стирает — вместе с
+ * сохранённым расписанием. У значка на экране «Домой» хранилище своё, и его
+ * это правило не касается. То есть без установки офлайн-расписание может
+ * исчезнуть как раз к сессии, когда в вуз ходят реже.
+ */
+function suggestInstall() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS прикидывается Mac
+  const installed = navigator.standalone === true ||
+    (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (!ios || installed || localStorage.getItem(STORE + 'installHint') === 'off') return;
+  $('install').hidden = false;
+  $('installClose').onclick = () => {
+    $('install').hidden = true;
+    localStorage.setItem(STORE + 'installHint', 'off');
+  };
+}
+
 // -------------------------------------------------------------------- старт
 
+suggestInstall();
 if (state.groupId) load(false, state.groupId, state.groupName);
 else { render(); openPicker(); }

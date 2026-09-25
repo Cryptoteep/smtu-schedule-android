@@ -28,6 +28,8 @@
     }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* без этого hidden не прячет элементы, которым задан display (полоса дней, подсказка) */
+  [hidden] { display:none !important; }
   html, body { height:100%; }
   body {
     margin:0; background:var(--bg); color:var(--text);
@@ -80,6 +82,16 @@
     font-variant-numeric: tabular-nums;   /* цифры не прыгают на каждой секунде */
   }
   @media (prefers-color-scheme: dark) { .nowbar { color:#10131A; } }
+
+  .install {
+    flex:none; display:flex; align-items:center; gap:8px;
+    background:var(--today); color:var(--text); font-size:13px; padding:8px 8px 8px 12px;
+  }
+  .install span { flex:1; }
+  .install button {
+    flex:none; width:36px; height:36px; border:0; border-radius:10px;
+    background:transparent; color:var(--muted); font-size:16px; cursor:pointer;
+  }
 
   main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 8px 12px; }
   .dayhead { font-size:13px; font-weight:700; color:var(--muted); padding:12px 6px 6px; }
@@ -153,6 +165,12 @@
   <div class="nowbar" id="nowbar" hidden></div>
 </header>
 
+<div class="install" id="install" hidden>
+  <span>Чтобы расписание открывалось как приложение и не пропадало без сети:
+  <b>Поделиться</b> → <b>На экран «Домой»</b>.</span>
+  <button id="installClose" aria-label="Скрыть подсказку">✕</button>
+</div>
+
 <main id="body"><div class="hint" id="hint">Загружаю расписание…</div></main>
 <div class="status" id="status"></div>
 
@@ -186,7 +204,7 @@
   <div class="dlg-actions"><button id="finderClose">Закрыть</button></div>
 </dialog>
 
-<script src="parser.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="parser.js?v=12"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
