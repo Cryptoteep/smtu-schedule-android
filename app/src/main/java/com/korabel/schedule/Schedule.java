@@ -92,6 +92,14 @@ public final class Schedule {
     /** Данные пришли из резервного среза (сайт был недоступен). */
     public boolean isMirrored()    { return mirrored; }
     public boolean isEmpty()       { return lessons.isEmpty(); }
+
+    /**
+     * Собрано раньше, чем {@code other}, — то есть заменять им {@code other}
+     * значит откатиться назад. Пустое {@code other} заменить можно всегда.
+     */
+    public boolean isOlderThan(Schedule other) {
+        return !other.isEmpty() && fetchedAt < other.fetchedAt;
+    }
     public int size()              { return lessons.size(); }
 
     /** Первый и последний день, который покрывает это расписание. */

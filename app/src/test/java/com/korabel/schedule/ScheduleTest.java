@@ -188,6 +188,16 @@ public class ScheduleTest {
                 s.occurrenceNear(l, MON_14_SEP + 30));
     }
 
+    /** Недельной давности резервная копия не должна затирать вчерашний ответ сайта. */
+    @Test public void anOlderCopyDoesNotReplaceANewerOne() {
+        Lesson l = lesson("Химия", MON_14_SEP);
+        Schedule yesterday = new Schedule(list(l), "12826-11", 2000);
+        Schedule weekOld = new Schedule(list(l), "12826-11", 1000, true);
+        assertTrue(weekOld.isOlderThan(yesterday));
+        assertFalse(yesterday.isOlderThan(weekOld));
+        assertFalse("пустое заменить можно всегда", weekOld.isOlderThan(Schedule.EMPTY));
+    }
+
     private static boolean sameSubjects(List<Lesson> a, List<Lesson> b) {
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++)

@@ -16,8 +16,10 @@ import java.util.Map;
  *       семестрами. С 15.09.2026 это единственный машиночитаемый признак на
  *       странице.</li>
  *   <li><b>Даты самих занятий</b> ({@link #derive}) — так считалось раньше,
- *       когда каждая строка расписания несла список дат проведения. Эти данные
- *       остались в сохранённом кэше, поэтому путь сохранён.</li>
+ *       когда каждая строка расписания несла список дат проведения. Путь
+ *       оставлен намеренно: прежняя вёрстка строку «Сегодня» не печатала, и
+ *       если университет откатит изменение, парсер снова получит даты, а
+ *       чётность — только отсюда.</li>
  * </ol>
  *
  * При выводе из дат якорем берётся неделя с самым уверенным большинством;
@@ -33,20 +35,23 @@ public final class WeekParity {
     private final boolean anchorUpper;
     private final double agreement;
     private final int weeks;
+    private final boolean site;
 
     public WeekParity(long anchorMonday, boolean anchorUpper) {
-        this(anchorMonday, anchorUpper, 1.0, 0);
+        this(anchorMonday, anchorUpper, 1.0, 0, false);
     }
 
-    private WeekParity(long anchorMonday, boolean anchorUpper, double agreement, int weeks) {
+    private WeekParity(long anchorMonday, boolean anchorUpper, double agreement, int weeks,
+                       boolean site) {
         this.anchorMonday = Dates.monday(anchorMonday);
         this.anchorUpper = anchorUpper;
         this.agreement = agreement;
         this.weeks = weeks;
+        this.site = site;
     }
 
     public static WeekParity fallback() {
-        return new WeekParity(FALLBACK_MONDAY, true, 0.0, 0);
+        return new WeekParity(FALLBACK_MONDAY, true, 0.0, 0, false);
     }
 
     /**
@@ -55,7 +60,7 @@ public final class WeekParity {
      * Сайт знает чётность точно, спорить с ним не о чем — согласие 1.0.
      */
     public static WeekParity fromSite(long day, boolean upper) {
-        return new WeekParity(day, upper, 1.0, 1);
+        return new WeekParity(day, upper, 1.0, 1, true);
     }
 
     /**
@@ -95,7 +100,7 @@ public final class WeekParity {
             if (candidate.isUpper(e.getKey()) == (v[0] > v[1])) agree++;
         }
         double ratio = total == 0 ? 1.0 : (double) agree / total;
-        return new WeekParity(bestMonday, bestUpper, ratio, votes.size());
+        return new WeekParity(bestMonday, bestUpper, ratio, votes.size(), false);
     }
 
     /** Is the week containing that day верхняя? */
@@ -117,6 +122,17 @@ public final class WeekParity {
     /** True when derived from real data rather than the constant fallback. */
     public boolean isDerived() {
         return weeks > 0;
+    }
+
+    /**
+     * Чётность напечатана самим сайтом, а не выведена из дат.
+     *
+     * Только такой якорь стоит сохранять в кэш: выведенный из дат цикл
+     * пересчитывается из тех же дат при чтении, а если записать его как якорь,
+     * после перезапуска пропала бы пометка «чётность недель неточная».
+     */
+    public boolean isFromSite() {
+        return site;
     }
 
     @Override public String toString() {

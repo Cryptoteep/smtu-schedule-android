@@ -47,7 +47,7 @@ import java.util.Locale;
  * to the phone's calendar, and sharing it as text.
  *
  * Views are built in code — no XML layouts, no AndroidX, no third-party
- * libraries; the signed release APK is about 53 KB.
+ * libraries; the signed release APK is about 90 KB.
  */
 public final class MainActivity extends Activity {
 
@@ -63,6 +63,12 @@ public final class MainActivity extends Activity {
     private String teacherId, teacherName;      // non-null while viewing a teacher
     private Schedule schedule = Schedule.EMPTY;
     private boolean loading;
+    /**
+     * Почему последнее обновление не удалось; null — удалось. Тост исчезает
+     * через две секунды, а человек смотрит на экран дольше: без этой строки
+     * вчерашнее расписание после неудачного ⟳ выглядело бы свежим.
+     */
+    private String lastError;
 
     private boolean dayMode;
     private long anchorMonday = Dates.monday(Dates.today());
@@ -150,6 +156,7 @@ public final class MainActivity extends Activity {
 
     private void load() {
         schedule = Smtu.cached(this, false, groupId);
+        lastError = null;
         if (!schedule.title().isEmpty()) groupName = schedule.title();
         render();
         refresh();
@@ -165,6 +172,9 @@ public final class MainActivity extends Activity {
         setLoading(true);
         Smtu.schedule(this, teacher, id, (result, error) -> {
             if (isFinishing()) return;
+            // ответ мог опоздать: человек уже переключился на другое расписание
+            if (teacher != (teacherId != null) || !id.equals(teacher ? teacherId : groupId)) return;
+            lastError = error;
             setLoading(false);
             if (result != null && !result.isEmpty()) {
                 schedule = result;
@@ -196,6 +206,7 @@ public final class MainActivity extends Activity {
         teacherId = lesson.teacherId;
         teacherName = lesson.teacher;
         schedule = Smtu.cached(this, true, teacherId);
+        lastError = null;
         render();
         refresh();
     }
@@ -458,6 +469,7 @@ public final class MainActivity extends Activity {
     private String emptyLabel() {
         if (schedule.isEmpty())
             return loading ? "Загружаю расписание…"
+                    : lastError != null ? lastError + ".\nНажмите ⟳, чтобы попробовать снова."
                     : "Расписание не загружено.\nНажмите ⟳ при подключении к сети.";
         long shown = shownDay();
         if (!schedule.inSemester(shown)) return outsideLabel();
@@ -529,6 +541,8 @@ public final class MainActivity extends Activity {
         }
         if (schedule.isMirrored())
             s.append(" · сайт недоступен, данные из резервной копии");
+        if (lastError != null)
+            s.append(" · ").append(lastError.toLowerCase(Dates.RU));
         // сайт пишет чётность прямым текстом; если строки не оказалось, цикл
         // считается от встроенной даты — и об этом надо сказать, а не молчать
         if (!schedule.parity().isDerived())
@@ -1019,9 +1033,12 @@ public final class MainActivity extends Activity {
     }
 
     private void showAbout() {
-        String parity = schedule.parity().isDerived()
-                ? "Чётность недель вычислена по датам занятий с сайта."
-                : "Чётность недель — по встроенному календарю (расписание ещё не загружено).";
+        WeekParity wp = schedule.parity();
+        String parity = wp.isFromSite()
+                ? "Чётность недели — со страницы сайта («Сегодня: … верхняя неделя»)."
+                : wp.isDerived()
+                        ? "Чётность недель выведена из дат занятий: строки «Сегодня» на странице нет."
+                        : "Чётность недель — по встроенному календарю: сайт её не подтвердил.";
         String latest = Updates.latestKnown(this);
         String update = latest == null ? "Обновления ещё не проверялись."
                 : Updates.isNewer(latest, BuildConfig.VERSION_NAME)
