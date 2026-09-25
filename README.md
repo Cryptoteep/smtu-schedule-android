@@ -50,7 +50,7 @@
   <img src="docs/screenshot-lesson.png" width="30%" alt="Занятие">
 </p>
 
-- **Группа выбирается один раз** — поиск по всем 412 группам, дальше запоминается.
+- **Группа выбирается один раз** — поиск по всем группам университета (их больше 400), дальше запоминается.
 - **Неделя и день.** Свайп влево-вправо листает день или неделю, кнопка
   «Сегодня» возвращает к текущему дню. Весь семестр скачивается одним запросом,
   поэтому листание мгновенное и работает офлайн.
@@ -107,7 +107,7 @@
 тот самый источник, который правит сам университет:
 
 ```
-GET /ru/listschedule/                   -> 412 групп: id и названия
+GET /ru/listschedule/                   -> все группы (больше 400): id и названия
 GET /ru/viewschedule_new/<gid>/         -> расписание группы на весь семестр
 GET /ru/viewschedule_new/teacher/<pid>/ -> расписание преподавателя на семестр
 ```
@@ -399,7 +399,7 @@ Unofficial schedule viewer for [SPbSMTU](https://www.smtu.ru/) (Saint Petersburg
 State Marine Technical University). Pure Java, zero third-party libraries (no
 AndroidX), all views built in code; the signed release APK is 89 KB.
 
-**Features.** Pick your group once from all 412; week and day views with swipe
+**Features.** Pick your group once from all 400+; week and day views with swipe
 navigation; the lesson happening now is highlighted; a teacher's full schedule
 opens in place, across all their groups; search over subject, teacher, room,
 type and group; add a lesson to the phone's calendar or share a day as text;
