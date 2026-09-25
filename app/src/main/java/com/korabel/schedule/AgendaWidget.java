@@ -60,7 +60,7 @@ public final class AgendaWidget extends AppWidgetProvider {
             nowBlock(rv, true);
             upcoming = laterThan(st.today, st.current.endMinutes());
         } else if (st.kind == Now.BREAK) {
-            rv.setTextViewText(R.id.wa_header, "ЧЕРЕЗ " + Now.human(st.remainSec).toUpperCase(Dates.RU));
+            rv.setTextViewText(R.id.wa_header, Now.untilNext(st).toUpperCase(Dates.RU));
             nowBlock(rv, false);
             upcoming = laterThan(st.today, st.nowSec / 60);
         } else {
@@ -82,7 +82,7 @@ public final class AgendaWidget extends AppWidgetProvider {
             return st.groupId == null ? "Группа не выбрана" : "Пар нет";
         if (st.kind == Now.ONGOING)
             return "Сейчас " + st.current.subject + ", осталось " + Now.human(st.remainSec);
-        String when = st.kind == Now.BREAK ? "через " + Now.human(st.remainSec)
+        String when = st.kind == Now.BREAK ? Now.untilNext(st)
                 : st.isTomorrow() ? "завтра" : Now.dayLabel(st).toLowerCase(Dates.RU);
         return "Следующая пара " + when + ": " + st.next.subject;
     }

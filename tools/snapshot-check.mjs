@@ -16,10 +16,22 @@
 export const MAX_EMPTY_SHARE = 0.5;
 /** Столько групп может не ответить по сетевым причинам. */
 export const MAX_FAILED_SHARE = 0.2;
+/**
+ * Ниже этой доли занятий с разобранным полем — колонка потерялась.
+ *
+ * Вёрстка может сломаться не целиком: занятия находятся, а переименованный
+ * столбец («Преподаватель» → «ФИО») молча становится пустым у всех. В срезе
+ * от 24.09.2026 время есть у 100 % занятий, аудитория — у 99,9 %,
+ * преподаватель — у 99,2 %; половина — порог с большим запасом.
+ */
+export const MIN_FIELD_SHARE = 0.5;
+const FIELDS = { withTime: 'время', withRoom: 'аудитория', withTeacher: 'преподаватель' };
 
 /**
  * @param {{groups: number, lessons: number, empty: number, failed: number,
- *          anchor: unknown}} stats итоги обхода
+ *          anchor: unknown, withTime?: number, withRoom?: number,
+ *          withTeacher?: number}} stats итоги обхода; with* — у скольких
+ *          занятий это поле разобралось (не передано — не проверяется)
  * @returns {string|null} причина, по которой публиковать нельзя, или null
  */
 export function verdict(stats) {
@@ -34,5 +46,10 @@ export function verdict(stats) {
     return `у ${empty} групп из ${groups} расписание пустое — не публикуем такой срез`;
   if (!anchor)
     return 'на странице нет строки «Сегодня: … неделя» — чётность считать не от чего';
+  for (const [key, name] of Object.entries(FIELDS)) {
+    const have = stats[key];
+    if (typeof have === 'number' && have < lessons * MIN_FIELD_SHARE)
+      return `поле «${name}» разобралось только у ${have} занятий из ${lessons} — сменилась вёрстка колонок?`;
+  }
   return null;
 }

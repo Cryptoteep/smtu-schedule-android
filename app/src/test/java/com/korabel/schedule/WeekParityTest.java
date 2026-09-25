@@ -89,4 +89,19 @@ public class WeekParityTest {
         l.days.add(day);
         return l;
     }
+
+    /** В кэш пишется только якорь сайта: выведенный из дат пересчитывается при чтении. */
+    @Test public void onlyTheSiteAnchorCountsAsFromTheSite() {
+        long mon = Dates.toEpochDay(2026, 9, 14);
+        assertTrue(WeekParity.fromSite(mon, true).isFromSite());
+        assertFalse(WeekParity.fallback().isFromSite());
+        Lesson l = new Lesson();
+        l.upper = true;
+        l.days.add(mon);
+        List<Lesson> dated = new ArrayList<>();
+        dated.add(l);
+        WeekParity derived = WeekParity.derive(dated);
+        assertTrue(derived.isDerived());
+        assertFalse(derived.isFromSite());
+    }
 }

@@ -1,7 +1,7 @@
 /*
  * Проверка сторожа, который решает, публиковать ли собранный срез.
  *
- * Запуск: node --test tools/
+ * Запуск: node --test tools/*.test.mjs
  *
  * Почему эти тесты важнее, чем кажется: тесты парсера гоняются на сохранённых
  * страницах и по своей природе не могут заметить, что сайт переделали, — копия
@@ -12,7 +12,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { verdict } from './snapshot-check.mjs';
 
-const HEALTHY = { groups: 412, lessons: 9888, empty: 2, failed: 0, anchor: { day: 20717, upper: false } };
+const HEALTHY = {
+  groups: 412, lessons: 9888, empty: 2, failed: 0, anchor: { day: 20717, upper: false },
+  withTime: 9888, withRoom: 9883, withTeacher: 9805
+};
 
 test('здоровый срез публикуется', () => {
   assert.equal(verdict(HEALTHY), null);
@@ -46,4 +49,16 @@ test('без чётности со страницы срез бесполезе�
 test('пустой список групп — первый признак, что всё сломалось', () => {
   assert.match(verdict({ groups: 0, lessons: 0, empty: 0, failed: 0, anchor: null }), /список групп/);
   assert.match(verdict(), /список групп/);
+});
+
+test('занятия есть, а колонка пропала — тоже поломка вёрстки', () => {
+  assert.match(verdict({ ...HEALTHY, withTeacher: 0 }), /преподаватель/);
+  assert.match(verdict({ ...HEALTHY, withRoom: 300 }), /аудитория/);
+  assert.match(verdict({ ...HEALTHY, withTime: 4000 }), /время/);
+  assert.equal(verdict({ ...HEALTHY, withTeacher: 8000 }), null, 'часть без преподавателя — бывает');
+});
+
+test('старые вызовы без счётчиков полей не ломаются', () => {
+  const { withTime, withRoom, withTeacher, ...bare } = HEALTHY;
+  assert.equal(verdict(bare), null);
 });

@@ -5,12 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * One row of a schedule: a subject in a time slot on a weekday, with the exact
- * dates it actually happens on.
+ * One row of a schedule: a subject in a time slot on a weekday.
  *
- * The site gives every row a `title` attribute listing every occurrence date,
- * so a lesson knows its own dates and the UI never has to guess. Rows that lack
- * that list fall back to weekday + week parity.
+ * До 15.09.2026 сайт давал каждой строке список всех дат проведения, и занятие
+ * знало свои дни само. Теперь дат на странице нет: день определяется правилом
+ * «день недели + чётность» ({@link #happensOn}), а список {@link #days}
+ * заполняется только на прежней вёрстке — на случай, если её вернут.
  *
  * Plain Java (no Android, no JSON) so it can be unit-tested on the JVM.
  */

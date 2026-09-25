@@ -108,27 +108,8 @@ public final class Widgets {
             return;
         }
 
-        Now.State st = state(app);
-        long now = System.currentTimeMillis();
-        long at;
-        switch (st.kind) {
-            case Now.ONGOING:
-                at = now + 60_000L;
-                break;
-            case Now.BREAK:
-                // близко к началу — тикаем каждую минуту, далеко — спим до него
-                at = st.remainSec <= 90 * 60 ? now + 60_000L : now + st.remainSec * 1000L;
-                break;
-            case Now.AFTER:
-                at = Dates.startOfDayMillis(st.nextDay, st.next.startMinutes());
-                break;
-            default:
-                at = midnight(st.day);
-                break;
-        }
-        // полночь всегда меняет подписи («завтра» → «сегодня»)
-        at = Math.min(at, midnight(st.day));
-        at = Math.max(at, now + 15_000L);
+        // когда будить — чистый расчёт в Now, там же он и проверяется тестами
+        long at = System.currentTimeMillis() + Now.nextWakeSec(state(app)) * 1000L;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
@@ -141,10 +122,6 @@ public final class Widgets {
         Context app = ctx.getApplicationContext();
         AlarmManager am = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
         if (am != null) am.cancel(tick(app));
-    }
-
-    private static long midnight(long day) {
-        return Dates.startOfDayMillis(day + 1, 1);
     }
 
     private static PendingIntent tick(Context app) {

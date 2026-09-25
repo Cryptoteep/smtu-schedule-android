@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- То же, что backup_rules.xml, для Android 6–11: там читается этот атрибут,
+     а dataExtractionRules — нет. Группа и кэш маленькие, их можно переносить. -->
+<full-backup-content>
+    <include domain="file" path="." />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

@@ -113,8 +113,8 @@ public final class Smtu {
     }
 
     /**
-     * Fetch a group's or teacher's full-semester schedule and merge it into the
-     * cache. On a network error the cached copy is returned with the error, so
+     * Fetch a group's or teacher's full-semester schedule; a fresh answer
+     * replaces the cached copy (see the class comment). On a network error the cached copy is returned with the error, so
      * the UI can keep showing data and still say what went wrong.
      */
     public static void schedule(Context ctx, final boolean teacher, final String id,
@@ -123,7 +123,7 @@ public final class Smtu {
         final Schedule cached = readSchedule(app, teacher, id);
         race(cb,
                 () -> fromSite(teacher, id),
-                () -> fromMirror(teacher, id),
+                () -> notOlder(fromMirror(teacher, id), cached),
                 fresh -> {
                     writeSchedule(app, teacher, id, fresh);
                     if (teacher) trimTeacherCaches(app);
@@ -157,6 +157,20 @@ public final class Smtu {
         long at = res.lastModified > 0 ? res.lastModified : System.currentTimeMillis();
         return new Schedule(lessons, Mirror.parseTitle(res.body), at, true,
                 Mirror.parseAnchor(res.body));
+    }
+
+    /**
+     * Резервная копия, которая старше сохранённого ответа сайта, — не новость.
+     *
+     * Срез отстаёт, когда сломан сам сборщик (так было 15–20.09.2026: он пять
+     * дней не мог разобрать сайт), а под VPN сайт недоступен — и копия
+     * недельной давности молча затирала бы вчерашнее расписание. Считаем это
+     * неудачей копии: на экране остаётся сохранённое, с пометкой «нет связи».
+     */
+    static Schedule notOlder(Schedule copy, Schedule cached) throws IOException {
+        if (copy.isOlderThan(cached))
+            throw new IOException("резервная копия старше сохранённого расписания");
+        return copy;
     }
 
     // ------------------------------------------------------------------- race
@@ -355,8 +369,10 @@ public final class Smtu {
             if (root.has("anchorDay"))
                 anchor = WeekParity.fromSite(root.optLong("anchorDay"),
                         root.optBoolean("anchorUpper", true));
+            // пометка «из резервной копии» переживает перезапуск: иначе на
+            // следующий день срез выглядел бы ответом сайта
             return new Schedule(lessons, root.optString("title"), root.optLong("fetchedAt"),
-                    false, anchor);
+                    root.optBoolean("mirrored"), anchor);
         } catch (Exception e) {
             return Schedule.EMPTY;
         }
@@ -370,8 +386,9 @@ public final class Smtu {
                     .put("schema", CACHE_SCHEMA)
                     .put("title", s.title())
                     .put("fetchedAt", s.fetchedAt())
+                    .put("mirrored", s.isMirrored())
                     .put("lessons", arr);
-            if (s.parity().isDerived())
+            if (s.parity().isFromSite())
                 root.put("anchorDay", s.parity().anchorMonday())
                     .put("anchorUpper", s.parity().isUpper(s.parity().anchorMonday()));
             write(scheduleFile(ctx, teacher, id), root.toString());

@@ -32,12 +32,17 @@ jobs:
           node --check docs/app/app.js
           node --check docs/app/sw.js
           node --check docs/app/parser.js
-          node --check tools/build-data.mjs
+          for f in tools/*.mjs; do node --check "$f"; done
           python3 -c "import json; json.load(open('docs/app/manifest.webmanifest'))"
 
-      # сторож, который не даёт опубликовать пустой срез, когда сайт переделали
-      - name: Snapshot guard
-        run: node --test tools/*.test.mjs
+      # сторож, который не даёт опубликовать пустой срез, когда сайт переделали,
+      # и общий парсер parser.js на сохранённых страницах — из него собирается
+      # срез для веб-версии и для Android под VPN. linkedom — та же зависимость,
+      # что ставит workflow data; в APK она не попадает.
+      - name: Snapshot guard and shared parser
+        run: |
+          npm install --no-save linkedom
+          node --test tools/*.test.mjs
 
       - name: Update feed matches the app version
         run: |

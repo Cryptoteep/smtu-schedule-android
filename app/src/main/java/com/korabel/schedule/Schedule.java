@@ -92,6 +92,14 @@ public final class Schedule {
     /** Данные пришли из резервного среза (сайт был недоступен). */
     public boolean isMirrored()    { return mirrored; }
     public boolean isEmpty()       { return lessons.isEmpty(); }
+
+    /**
+     * Собрано раньше, чем {@code other}, — то есть заменять им {@code other}
+     * значит откатиться назад. Пустое {@code other} заменить можно всегда.
+     */
+    public boolean isOlderThan(Schedule other) {
+        return !other.isEmpty() && fetchedAt < other.fetchedAt;
+    }
     public int size()              { return lessons.size(); }
 
     /** Первый и последний день, который покрывает это расписание. */
@@ -156,6 +164,31 @@ public final class Schedule {
             if (!on(d).isEmpty()) return d;
             if (!bounded && i >= 14) break;   // без границ дальше двух недель смысла нет
         }
+        return Dates.NO_DATE;
+    }
+
+    /**
+     * Ближайший к {@code from} день, когда это занятие действительно идёт:
+     * сначала вперёд, потом назад, в пределах расписания.
+     *
+     * Нужно поиску и списку «все занятия по предмету». Пока у занятий были
+     * точные даты, достаточно было взять первую; с 15.09.2026 дат нет, и
+     * интерфейс открывал найденную пару в тот день, что был на экране, —
+     * лекцию понедельника с подписью «среда». Заодно учитывается чётность:
+     * занятие нижней недели не откроется на верхней.
+     *
+     * @return день или {@link Dates#NO_DATE}, если в пределах расписания его нет
+     */
+    public long occurrenceNear(Lesson lesson, long from) {
+        if (!lesson.days.isEmpty()) {
+            for (long d : lesson.days) if (d >= from) return d;
+            return lesson.days.get(lesson.days.size() - 1);
+        }
+        // цикл «день недели + чётность» повторяется за две недели
+        for (int i = 0; i < 14; i++)
+            if (on(from + i).contains(lesson)) return from + i;
+        for (int i = 1; i <= 14; i++)
+            if (on(from - i).contains(lesson)) return from - i;
         return Dates.NO_DATE;
     }
 

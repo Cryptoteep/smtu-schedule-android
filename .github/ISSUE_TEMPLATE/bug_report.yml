@@ -13,6 +13,26 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: where
+    attributes:
+      label: Где
+      options:
+        - Android-приложение
+        - Виджет на домашнем экране
+        - Веб-версия (браузер, iPhone)
+    validations:
+      required: true
+
+  - type: input
+    id: status
+    attributes:
+      label: Строка внизу экрана
+      description: Перепишите её целиком — там видно, когда обновлено расписание, взято ли оно из резервной копии и почему не обновилось.
+      placeholder: 32 занятия · обновлено сегодня, 09:14 · сайт недоступен, данные из резервной копии
+    validations:
+      required: false
+
   - type: input
     id: group
     attributes:
@@ -26,16 +46,16 @@ body:
     id: version
     attributes:
       label: Версия приложения
-      description: Меню ⋮ → «О приложении», первая строка.
-      placeholder: 2.0
+      description: Меню ⋮ → «О приложении», первая строка. Для веб-версии не нужна.
+      placeholder: "2.7"
     validations:
       required: false
 
   - type: input
     id: android
     attributes:
-      label: Android и модель телефона
-      placeholder: Android 13, Redmi Note 10
+      label: Система и модель телефона
+      placeholder: Android 13, Redmi Note 10 / iOS 18, iPhone 13
     validations:
       required: false
 

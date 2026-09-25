@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- targetCell*/previewLayout читает только Android 12+; ниже их молча
+     пропускают и берут minWidth/minHeight и initialLayout — так и задумано -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute"
     android:minWidth="40dp"
     android:minHeight="40dp"
     android:targetCellWidth="1"

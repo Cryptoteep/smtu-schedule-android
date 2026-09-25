@@ -149,6 +149,55 @@ public class ScheduleTest {
         assertFalse("lower-week Thursday", s.on(thursdayUpper + 7).contains(l));
     }
 
+    /** Найденное поиском занятие открывается в свой день, а не в тот, что на экране. */
+    @Test public void findsTheNearestRealOccurrenceOfADatelessLesson() {
+        Lesson lower = new Lesson();
+        lower.subject = "Сопромат";
+        lower.time = "10:10 - 11:40";
+        lower.day = "Понедельник";
+        lower.upper = false;
+        Lesson weekly = new Lesson();
+        weekly.subject = "Физра";
+        weekly.time = "13:30 - 15:00";
+        weekly.day = "Среда";
+        weekly.bothWeeks = true;
+        long fetched = Dates.startOfDayMillis(MON_14_SEP, 12 * 60);
+        Schedule s = new Schedule(list(lower, weekly), "12826-11", fetched,
+                false, WeekParity.fromSite(MON_14_SEP, true));
+
+        long thursday = MON_14_SEP + 3;
+        assertEquals("нижняя неделя начинается 21.09",
+                MON_14_SEP + 7, s.occurrenceNear(lower, thursday));
+        assertEquals("каждую неделю — ближайшая среда",
+                MON_14_SEP + 9, s.occurrenceNear(weekly, thursday));
+        assertEquals("в свой же день — он и есть",
+                MON_14_SEP + 2, s.occurrenceNear(weekly, MON_14_SEP + 2));
+
+        long lastDay = s.lastDay();
+        long found = s.occurrenceNear(weekly, lastDay);
+        assertTrue("у горизонта ищем назад", found <= lastDay && found > lastDay - 7);
+        assertEquals(Dates.NO_DATE, s.occurrenceNear(weekly, lastDay + 400));
+    }
+
+    @Test public void aDatedLessonOpensOnItsNextDate() {
+        Lesson l = lesson("Химия", MON_14_SEP);
+        l.days.add(MON_14_SEP + 14);
+        Schedule s = new Schedule(list(l), "12826-11", 0);
+        assertEquals(MON_14_SEP + 14, s.occurrenceNear(l, MON_14_SEP + 1));
+        assertEquals("после последней — последняя", MON_14_SEP + 14,
+                s.occurrenceNear(l, MON_14_SEP + 30));
+    }
+
+    /** Недельной давности резервная копия не должна затирать вчерашний ответ сайта. */
+    @Test public void anOlderCopyDoesNotReplaceANewerOne() {
+        Lesson l = lesson("Химия", MON_14_SEP);
+        Schedule yesterday = new Schedule(list(l), "12826-11", 2000);
+        Schedule weekOld = new Schedule(list(l), "12826-11", 1000, true);
+        assertTrue(weekOld.isOlderThan(yesterday));
+        assertFalse(yesterday.isOlderThan(weekOld));
+        assertFalse("пустое заменить можно всегда", weekOld.isOlderThan(Schedule.EMPTY));
+    }
+
     private static boolean sameSubjects(List<Lesson> a, List<Lesson> b) {
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++)
