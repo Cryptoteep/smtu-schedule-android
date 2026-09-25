@@ -1,5 +1,6 @@
 package com.korabel.schedule;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -420,6 +421,10 @@ final class Maps {
             c.drawBitmap(page, 0, 0, null);
         }
 
+        // У плана нет действия «по нажатию»: он только двигается и масштабируется,
+        // а этажи листаются отдельными кнопками, доступными TalkBack. Вызывать
+        // performClick здесь нечего.
+        @SuppressLint("ClickableViewAccessibility")
         @Override public boolean onTouchEvent(MotionEvent e) {
             pinch.onTouchEvent(e);
             if (!pinch.isInProgress()) drag.onTouchEvent(e);
@@ -427,10 +432,6 @@ final class Maps {
             if (e.getAction() == MotionEvent.ACTION_DOWN && getParent() != null)
                 getParent().requestDisallowInterceptTouchEvent(true);
             return true;
-        }
-
-        @Override public boolean performClick() {
-            return super.performClick();
         }
 
         private void clamp() {

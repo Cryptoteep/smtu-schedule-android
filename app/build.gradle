@@ -100,7 +100,8 @@ android {
         warningsAsErrors false
         // The app is Russian-only by design: every string lives in the code next
         // to the logic that builds it, so there is nothing to translate.
-        disable 'GoogleAppIndexingWarning', 'SetTextI18n'
+        // HardcodedText — то же самое для подписей-заглушек в разметке виджетов.
+        disable 'GoogleAppIndexingWarning', 'SetTextI18n', 'HardcodedText'
     }
 }
 
