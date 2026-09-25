@@ -16,9 +16,9 @@
  *
  * Запуск: node tools/build-data.mjs [--limit N]
  */
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { parseHTML } from 'linkedom';
+import { loadParser } from './parser.mjs';
 import { verdict } from './snapshot-check.mjs';
 
 // адрес можно подменить — так проверка «а упадём ли мы на сломанной вёрстке»
@@ -33,12 +33,7 @@ const limitArg = process.argv.indexOf('--limit');
 const LIMIT = limitArg > 0 ? Number(process.argv[limitArg + 1]) : Infinity;
 
 // Парсер один на всех: тот же файл подключает и браузер.
-const parserSource = await readFile(new URL('../docs/app/parser.js', import.meta.url), 'utf8');
-const parser = new Function('DOMParser', parserSource + '\nreturn { parseSchedule, parseGroups, parseTitle, parseWeekAnchor };')(
-  class {
-    parseFromString(html) { return parseHTML(html).document; }
-  }
-);
+const parser = await loadParser();
 
 async function fetchPage(path) {
   let lastError;
@@ -71,6 +66,7 @@ console.log('групп в списке:', groups.length);
 const index = { updated: new Date().toISOString(), groups: [], teachers: [] };
 const byTeacher = new Map();          // id преподавателя -> его занятия во всех группах
 let lessonsTotal = 0, failed = 0, empty = 0;
+const filled = { withTime: 0, withRoom: 0, withTeacher: 0 };   // для сторожа колонок
 let anchor = null;                    // чётность недели, как её пишет сайт
 
 for (const [i, group] of groups.slice(0, LIMIT).entries()) {
@@ -80,6 +76,11 @@ for (const [i, group] of groups.slice(0, LIMIT).entries()) {
     const title = parser.parseTitle(html) || group.name;
     if (!anchor) anchor = parser.parseWeekAnchor(html);
     if (!lessons.length) empty++;
+    for (const l of lessons) {
+      if (/^\d\d:\d\d - \d\d:\d\d$/.test(l.time)) filled.withTime++;
+      if (l.room) filled.withRoom++;
+      if (l.teacher) filled.withTeacher++;
+    }
 
     await writeFile(new URL('g/' + group.id + '.json', OUT),
       JSON.stringify({ id: group.id, name: title, lessons, ...anchorFields() }));
@@ -125,7 +126,7 @@ const seconds = Math.round((Date.now() - started) / 1000);
 console.log(`готово за ${seconds} с: ${index.groups.length} групп, ${index.teachers.length} преподавателей, ${lessonsTotal} занятий, пустых ${empty}, ошибок ${failed}`);
 
 const stop = verdict({
-  groups: groups.length, lessons: lessonsTotal, empty, failed, anchor
+  groups: groups.length, lessons: lessonsTotal, empty, failed, anchor, ...filled
 });
 if (stop) {
   console.error(stop);
